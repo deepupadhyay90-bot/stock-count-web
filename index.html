@@ -425,7 +425,7 @@ function renderSummary(){
 /* ---------- setup & export ---------- */
 function renderMore(){
   const noPic=S.items.filter(i=>!hasPic(i)).length, ov=S.ov;
-  const masterHtml=LOCAL?`<h2>Item master</h2><div class="card stack"><p class="note" style="margin:0">${ov?`Loaded <b>${esc(ov.name||'file')}</b>: ${fmt(Object.keys(ov.rows).length)} items updated or added${ov.only?', and the list shows only those items':''}. `:''}Upload an Excel file (.xlsx) with your items to update names, priorities and pictures or add new items. Columns: Image, CID Code, BC Code, SKU Code, Description, UOM, Status, Category, Priority. Counts already entered are kept.</p>
+  const masterHtml=LOCAL?`<h2>Item master</h2><div class="card stack"><p class="note" style="margin:0">${ov?`Loaded <b>${esc(ov.name||'file')}</b>: ${fmt(Object.keys(ov.rows).length)} items updated or added${ov.only?', and the list shows only those items':''}. `:''}Upload an Excel file (.xlsx) with your items to update names, priorities and pictures or add new items. Columns: Image, CID Code, BC Code, SKU Code, Description, UOM, Status, Category, Priority, SOH. Filling SOH also loads the system stock. Counts already entered are kept.</p>
    <div class="pair"><button type="button" class="btn ghost" data-act="master">Import master file</button>${ov?`<button type="button" class="btn danger" data-act="delmaster">Restore built-in list</button>`:'<span></span>'}</div></div>`:'';
   main.innerHTML=banner()+`<h2>Export</h2><div class="card stack"><p class="note" style="margin:0">Downloads an Excel file with every item, the quantity per location, the total, system stock and variance, plus a Master data sheet laid out like yours.</p><button type="button" class="btn" data-act="export">Export count to Excel</button></div>
   <h2>Locations</h2><div class="card"><p class="note" style="margin:0 0 10px">Each location keeps its own count. Pick the one you are standing in at the top of the screen.</p>
@@ -628,7 +628,7 @@ async function clearPics(){try{const db=await idb();await new Promise(ok=>{const
 
 const nrm=v=>String(v??'').toLowerCase().replace(/[^a-z0-9]/g,'');
 const HDR={img:h=>/^(image|picture|photo)/.test(h),cid:h=>/^cid/.test(h),bc:h=>/^(bc|barcode|rmt|itemno|itemcode)/.test(h),sku:h=>/^(sku|vendor)/.test(h),
-  d:h=>h.includes('description')||h==='name'||h==='itemname',u:h=>/^(uom|unit)/.test(h),st:h=>/^status/.test(h),cat:h=>/^category/.test(h),pr:h=>/^priority/.test(h),z:h=>/^zone/.test(h)};
+  d:h=>h.includes('description')||h==='name'||h==='itemname',u:h=>/^(uom|unit)/.test(h),st:h=>/^status/.test(h),cat:h=>/^category/.test(h),pr:h=>/^priority/.test(h),z:h=>/^zone/.test(h),soh:h=>/soh|stock|qty|quantity|onhand|balance|closing/.test(h)};
 function zipText(wb,p){const f=wb.files[p];if(!f)return '';const c=f.content;return typeof c==='string'?c:new TextDecoder().decode(c instanceof Uint8Array?c:new Uint8Array(c))}
 function zipRels(wb,path){
   const i=path.lastIndexOf('/'),dir=path.slice(0,i),out={},x=zipText(wb,dir+'/_rels/'+path.slice(i+1)+'.rels');
@@ -689,7 +689,8 @@ async function parseMaster(file){
       const codes=[e.cid,e.bc,e.sku].filter(Boolean).map(c=>c.toUpperCase());
       let key=null,isNew=false; for(const c of codes){if(seen.has(c)){key=seen.get(c);break}}
       if(!key){for(const c of codes){const ix=S.codes.get(c);if(ix!=null){const it=S.items[ix];key=it.s+'|'+it.r;break}}}
-      const row={e,cat:g('cat')||(multi?f.name:''),pic:picMap.get(i+f.r0+1)||null,key,order:++order};
+      const sv=f.col.soh==null?null:r[f.col.soh], soh=sv==null||sv===''||!isFinite(Number(sv))?null:Number(sv);
+      const row={e,cat:g('cat')||(multi?f.name:''),pic:picMap.get(i+f.r0+1)||null,key,order:++order,soh};
       if(!key){row.isNew=true;key=row.key='n'+order} codes.forEach(c=>seen.set(c,key)); rows.push(row);
     }
   }
@@ -704,7 +705,7 @@ async function tileFromBytes(bytes){
 }
 async function applyMaster(P,replace){
   const ov=S.ov?JSON.parse(JSON.stringify(S.ov)):{v:1,cats:[],rows:{},seq:0}, cats=S.base.cats.concat(ov.cats), keys=[], newPics=new Map(), tmp=new Map();
-  let n=0;
+  let n=0; const sohByKey=new Map();
   for(const row of P.rows){
     let key=row.key;
     if(tmp.has(key)) key=tmp.get(key);
@@ -714,6 +715,7 @@ async function applyMaster(P,replace){
     }
     const e=ov.rows[key]||(ov.rows[key]={}); for(const f in row.e){if(row.e[f]!=='')e[f]=row.e[f]} if(row.e.pr)e.po=row.order;
     if(row.pic&&P.wb.files[row.pic]){const t=await tileFromBytes(P.wb.files[row.pic].content);if(t){newPics.set(key,t);e.pic=1}}
+    if(row.soh!=null) sohByKey.set(key,(sohByKey.get(key)||0)+row.soh);
     keys.push(key); if(++n%40===0){toast('Importing… '+n+' of '+P.rows.length);await new Promise(r=>setTimeout(r,0))}
   }
   if(replace) ov.only=[...new Set(keys)]; else if(ov.only) ov.only=[...new Set(ov.only.concat(keys))];
@@ -721,17 +723,22 @@ async function applyMaster(P,replace){
   try{await savePics(newPics)}catch(e){toast('Pictures could not be saved on this device; the items were still imported.')}
   newPics.forEach((v,k)=>setPic(k,v));
   S.ov=ov; ls.set('inv.master',ov); buildItems(); S.cat=null; S.prio=null; S.q=''; $('#search').value='';
-  return {n:keys.length,pics:newPics.size};
+  if(sohByKey.size){
+    const q=Object.assign({},S.stock&&S.stock.q), byKey=new Map(S.items.map(it=>[it.s+'|'+it.r,it])), add={};
+    sohByKey.forEach((v,k)=>{const it=byKey.get(k);if(it&&it.cid)add[it.cid]=(add[it.cid]||0)+v});
+    Object.assign(q,add); S.stock={q,name:P.name,col:'SOH',at:ov.at}; ls.set('inv.stock',S.stock);
+  }
+  return {n:keys.length,pics:newPics.size,soh:sohByKey.size};
 }
 $('#masterfile').addEventListener('change',async e=>{
   const f=e.target.files[0]; e.target.value=''; if(!f) return;
   toast('Reading '+f.name+'…');
   let P=null; try{P=await parseMaster(f)}catch(er){return toast('That file could not be read. Use an Excel .xlsx file.')}
   if(!P||!P.rows.length) return toast('No items found. The file needs a Description column and a code column (CID Code or BC Code).');
-  S.master=P; const nu=P.rows.filter(r=>r.isNew).length, np=P.rows.filter(r=>r.pic).length;
+  S.master=P; const nu=P.rows.filter(r=>r.isNew).length, np=P.rows.filter(r=>r.pic).length, ns=P.rows.filter(r=>r.soh!=null).length;
   $('#sheetroot').innerHTML=`<div class="scrim" id="mscrim"><div class="sheet"><div class="hd"><b>Import item master</b><button type="button" class="btn ghost" id="mcancel" style="height:36px">Cancel</button></div>
    <p class="note" style="margin:0 0 8px">${esc(P.name)}</p>
-   <table class="num"><tbody><tr><td>Items in the file</td><td>${fmt(P.rows.length)}</td></tr><tr><td>Already in the app (will be updated)</td><td>${fmt(P.rows.length-nu)}</td></tr><tr><td>New items (will be added)</td><td>${fmt(nu)}</td></tr><tr><td>Pictures found</td><td>${fmt(np)}</td></tr>${P.skipped?`<tr><td>Rows skipped (no code)</td><td>${fmt(P.skipped)}</td></tr>`:''}</tbody></table>
+   <table class="num"><tbody><tr><td>Items in the file</td><td>${fmt(P.rows.length)}</td></tr><tr><td>Already in the app (will be updated)</td><td>${fmt(P.rows.length-nu)}</td></tr><tr><td>New items (will be added)</td><td>${fmt(nu)}</td></tr><tr><td>Pictures found</td><td>${fmt(np)}</td></tr><tr><td>System stock (SOH) quantities</td><td>${fmt(ns)}</td></tr>${P.skipped?`<tr><td>Rows skipped (no code)</td><td>${fmt(P.skipped)}</td></tr>`:''}</tbody></table>
    <div class="stack" style="margin-top:14px"><button type="button" class="btn" id="mapply">Update and add to the list</button><button type="button" class="btn danger" id="mreplace">Show only these items</button></div>
    <p class="note" style="margin:10px 0 0">“Show only these items” hides every item that is not in this file. Counts are kept either way, and you can restore the built-in list later.</p></div></div>`;
 });
@@ -740,7 +747,7 @@ $('#sheetroot').addEventListener('click',async e=>{
   if(id==='mcancel'||id==='mscrim'){S.master=null;$('#sheetroot').innerHTML='';return}
   if(id==='mreplace'&&!armed(e.target,'Tap again to hide all other items')) return;
   const P=S.master; S.master=null; $('#sheetroot').innerHTML=''; toast('Importing…');
-  try{const r=await applyMaster(P,id==='mreplace'); toast(`Master imported: ${fmt(r.n)} items, ${fmt(r.pics)} pictures`); render()}
+  try{const r=await applyMaster(P,id==='mreplace'); toast(`Master imported: ${fmt(r.n)} items, ${fmt(r.pics)} pictures, ${fmt(r.soh)} stock quantities`); render()}
   catch(er){toast('The import failed. Nothing was changed.')}
 });
 let tt=0; function toast(m){const t=$('#toast');t.textContent=m;t.hidden=false;clearTimeout(tt);tt=setTimeout(hideToast,3800)} function hideToast(){$('#toast').hidden=true}
