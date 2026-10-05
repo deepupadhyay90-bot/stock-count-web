@@ -1,0 +1,599 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Stock Count">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#1c6b47">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+<title>Stock Count</title>
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px)}body{margin:0}[hidden]{display:none!important}img{max-width:100%}</style>
+<script>window.STANDALONE=true</script>
+</head>
+<body>
+<style>
+/* Layout: one-hand phone tool. Sticky header (location + search + scan), a single scrolling list, fixed bottom tabs. */
+:root{
+  --bg:#f2f5f0; --surface:#ffffff; --sunk:#e8ede6; --ink:#16211a; --muted:#5b6a60; --line:#dbe3d9;
+  --accent:#1c6b47; --accent-ink:#ffffff; --accent-soft:#dff0e6;
+  --warn:#a85a08; --warn-soft:#fbecd5; --bad:#b3261e; --bad-soft:#fbe4e2; --tile:#ffffff;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  --nav-h:58px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0f1411; --surface:#171e1a; --sunk:#202a24; --ink:#e7eee9; --muted:#98a79d; --line:#2a362f;
+  --accent:#62c692; --accent-ink:#0b1a12; --accent-soft:#1b3527;
+  --warn:#f0b05a; --warn-soft:#3a2c14; --bad:#ff8a80; --bad-soft:#3d1d1b; --tile:#ffffff; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f1411; --surface:#171e1a; --sunk:#202a24; --ink:#e7eee9; --muted:#98a79d; --line:#2a362f;
+  --accent:#62c692; --accent-ink:#0b1a12; --accent-soft:#1b3527;
+  --warn:#f0b05a; --warn-soft:#3a2c14; --bad:#ff8a80; --bad-soft:#3d1d1b; --tile:#ffffff; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.35;-webkit-tap-highlight-color:transparent}
+button,input,select{font:inherit;color:inherit}
+input,select{font-size:16px}
+button{cursor:pointer;border:0;background:none;padding:0}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.wrap{max-width:720px;margin:0 auto;padding-inline:16px}
+.num{font-variant-numeric:tabular-nums}
+.mono{font-family:var(--mono);font-size:12px;letter-spacing:.01em}
+
+header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--bg);border-bottom:1px solid var(--line);padding-block:10px}
+.bar{display:flex;gap:8px;align-items:center}
+.bar+.bar{margin-top:8px}
+#loc{flex:1;min-width:0;height:40px;border:1px solid var(--line);border-radius:8px;background:var(--surface);padding:0 10px;font-weight:600}
+.sync{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);white-space:nowrap}
+.sync i{width:8px;height:8px;border-radius:50%;background:var(--accent)}
+.sync.busy i{background:var(--warn)} .sync.off i{background:var(--bad)}
+#search{flex:1;min-width:0;height:44px;border:1px solid var(--line);border-radius:8px;background:var(--surface);padding:0 12px}
+.btn{height:44px;padding:0 14px;border-radius:8px;background:var(--accent);color:var(--accent-ink);font-weight:600;display:inline-flex;align-items:center;gap:8px;white-space:nowrap}
+.btn.ghost{background:var(--surface);color:var(--ink);border:1px solid var(--line)}
+.btn.danger{background:var(--bad-soft);color:var(--bad)}
+.btn:disabled{opacity:.5}
+.btn svg{width:20px;height:20px}
+
+main{padding-block:12px calc(var(--nav-h) + env(safe-area-inset-bottom,0px) + 24px)}
+h2{font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin:18px 0 8px}
+h2:first-child{margin-top:4px}
+.note{color:var(--muted);font-size:13px}
+.banner{background:var(--warn-soft);color:var(--warn);border-radius:8px;padding:10px 12px;font-size:13px;margin-bottom:10px}
+
+/* category list */
+.cats{list-style:none;margin:0;padding:0;background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.cats li+li{border-top:1px solid var(--line)}
+.cat{display:grid;grid-template-columns:1fr auto;gap:4px 12px;width:100%;text-align:left;padding:12px 14px}
+.cat b{font-weight:600;min-width:0;overflow-wrap:anywhere}
+.cat .n{color:var(--muted);font-size:13px}
+.cat.done .n{color:var(--accent);font-weight:600}
+.prog{grid-column:1/-1;height:4px;border-radius:2px;background:var(--sunk);overflow:hidden}
+.prog span{display:block;height:100%;background:var(--accent)}
+
+/* item list */
+.listhead{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.back{height:36px;padding:0 10px 0 6px;border-radius:8px;border:1px solid var(--line);background:var(--surface);display:inline-flex;align-items:center;gap:2px;font-weight:500}
+.back svg{width:18px;height:18px}
+.listhead .ttl{flex:1;min-width:0;font-weight:600;overflow-wrap:anywhere}
+.chips{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap}
+.chip{height:32px;padding:0 12px;border-radius:16px;border:1px solid var(--line);background:var(--surface);font-size:13px}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.rows{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.row{display:grid;grid-template-columns:64px 1fr 84px;gap:10px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px}
+.row.counted{border-color:var(--accent)}
+.thumb{width:64px;height:64px;border-radius:6px;background-color:var(--tile);background-repeat:no-repeat;border:1px solid var(--line);flex:none}
+.thumb.none{background:var(--sunk);display:grid;place-items:center;color:var(--muted);font-size:10px;text-align:center;line-height:1.1}
+.txt{min-width:0;text-align:left}
+.txt .d{font-weight:500;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.txt .c{color:var(--muted);overflow-wrap:anywhere;margin-top:2px}
+.txt .m{color:var(--muted);font-size:12px;margin-top:1px}
+.q{display:flex;flex-direction:column;gap:3px;align-items:stretch}
+.q input{width:100%;height:46px;border:1px solid var(--line);border-radius:8px;background:var(--bg);text-align:center;font-size:18px;font-weight:600;padding:0 4px}
+.row.counted .q input{background:var(--accent-soft);border-color:var(--accent)}
+.q .sub{font-size:11px;color:var(--muted);text-align:center}
+.q .sub.var{color:var(--warn);font-weight:600}
+.empty{padding:28px 8px;text-align:center;color:var(--muted)}
+
+/* bottom nav */
+nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--surface);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px)}
+nav.tabs div{max-width:720px;margin:0 auto;display:grid;grid-template-columns:repeat(3,1fr)}
+nav.tabs button{height:var(--nav-h);font-size:13px;font-weight:500;color:var(--muted);border-top:3px solid transparent}
+nav.tabs button[aria-current="page"]{color:var(--accent);border-top-color:var(--accent);font-weight:600}
+
+/* detail sheet */
+.scrim{position:fixed;inset:0;z-index:40;background:rgba(8,14,10,.55);display:flex;align-items:flex-end;justify-content:center}
+.sheet{background:var(--surface);width:100%;max-width:720px;max-height:94%;overflow:auto;border-radius:16px 16px 0 0;padding:14px 16px calc(16px + env(safe-area-inset-bottom,0px))}
+.sheet .hd{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px}
+.sheet .hd span{color:var(--muted);font-size:13px}
+.big{width:220px;height:220px;max-width:100%;margin:0 auto 12px;border-radius:10px;background-color:var(--tile);background-repeat:no-repeat;border:1px solid var(--line)}
+.big.none{background:var(--sunk);display:grid;place-items:center;color:var(--muted)}
+.sheet h3{font-size:17px;font-weight:600;margin:0 0 8px;text-wrap:balance;overflow-wrap:anywhere}
+dl.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin:0 0 12px;font-size:13px}
+dl.kv dt{color:var(--muted)} dl.kv dd{margin:0;overflow-wrap:anywhere}
+.step{display:grid;grid-template-columns:56px 1fr 56px;gap:8px;margin-bottom:8px}
+.step button{height:56px;border-radius:10px;background:var(--sunk);font-size:26px;font-weight:500}
+.step input{height:56px;border:2px solid var(--accent);border-radius:10px;background:var(--bg);text-align:center;font-size:26px;font-weight:600;width:100%;min-width:0}
+.quick{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}
+.quick button{height:42px;border-radius:8px;border:1px solid var(--line);background:var(--surface);font-weight:500}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:8px 6px;border-bottom:1px solid var(--line);text-align:right}
+th:first-child,td:first-child{text-align:left;overflow-wrap:anywhere}
+th{color:var(--muted);font-weight:500;font-size:12px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}
+.stat b{display:block;font-size:22px;font-weight:600}
+.stat span{color:var(--muted);font-size:12px}
+.pos{color:var(--accent)} .neg{color:var(--bad)}
+.locrow{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+.locrow input{flex:1;min-width:0;height:44px;border:1px solid var(--line);border-radius:8px;background:var(--surface);padding:0 12px}
+.stack{display:flex;flex-direction:column;gap:10px}
+.tap{width:100%;text-align:left}
+.scanner{position:fixed;inset:0;z-index:50;background:#000;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:12px;padding:16px 16px calc(24px + env(safe-area-inset-bottom,0px))}
+.scanner video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.scanner .aim{position:absolute;left:8%;right:8%;top:38%;height:22%;border:3px solid #fff;border-radius:12px;box-shadow:0 0 0 100vmax rgba(0,0,0,.45)}
+.scanner p,.scanner button{position:relative;margin:0}
+#toast{position:fixed;left:16px;right:16px;bottom:calc(var(--nav-h) + env(safe-area-inset-bottom,0px) + 12px);z-index:60;margin:0 auto;max-width:480px;background:var(--ink);color:var(--bg);border-radius:10px;padding:12px 14px;font-size:14px;text-align:center}
+@media (prefers-reduced-motion:no-preference){.prog span{transition:width .2s}}
+</style>
+
+<header class="top"><div class="wrap">
+  <div class="bar">
+    <select id="loc" aria-label="Counting location"></select>
+    <div class="sync" id="sync"><i></i><span>Loading</span></div>
+  </div>
+  <div class="bar" id="searchbar">
+    <input id="search" type="search" placeholder="Search name, CID, BC or SKU code" autocomplete="off" enterkeyhint="search">
+    <button class="btn" id="scan" type="button" aria-label="Scan barcode"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 7V5a1 1 0 0 1 1-1h2M18 4h2a1 1 0 0 1 1 1v2M21 17v2a1 1 0 0 1-1 1h-2M6 20H4a1 1 0 0 1-1-1v-2M7 8v8M10 8v8M13 8v8M17 8v8"/></svg>Scan</button>
+  </div>
+</div></header>
+
+<main class="wrap" id="main"><p class="empty">Loading the item list…</p></main>
+
+<nav class="tabs" aria-label="Sections"><div>
+  <button type="button" data-tab="count" aria-current="page">Count</button>
+  <button type="button" data-tab="summary">Summary</button>
+  <button type="button" data-tab="more">Setup &amp; export</button>
+</div></nav>
+
+<input id="scanfile" type="file" accept="image/*" capture="environment" hidden>
+<input id="stockfile" type="file" accept=".xlsx,.xls,.csv" hidden>
+<div id="sheetroot"></div>
+<div id="toast" role="status" hidden></div>
+
+<script>
+(function(){
+"use strict";
+const $=s=>document.querySelector(s), main=$('#main');
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt=n=>n==null?'':(Math.round(n*1000)/1000).toLocaleString('en-US');
+const NATIVE=!!window.Android, LOCAL=NATIVE||!!window.STANDALONE;
+const ls=NATIVE?{get(k,d){try{const v=window.Android.get(k);return v==null||v===''?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{window.Android.put(k,JSON.stringify(v))}catch(e){}}}
+  :{get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+
+const S={items:[],cats:[],tile:192,grid:6,codes:new Map(),
+  tab:'count',cat:null,q:'',filter:'all',list:[],shown:0,
+  locs:[{id:'L1',name:'Main store'}],loc:ls.get('inv.loc','L1'),
+  remote:new Map(),pending:ls.get('inv.pending',{}),docs:new Set(),
+  stock:null,db:null,ready:false,local:false,readonly:false,inflight:{},sheet:null};
+
+/* ---------- data ---------- */
+const docId=(loc,s)=>loc+'_s'+s, key=(loc,s,r)=>loc+'|'+s+'|'+r;
+function getQ(loc,it){
+  const p=S.pending[docId(loc,it.s)];
+  if(p&&('r'+it.r) in p.q) return p.q['r'+it.r];
+  const v=S.remote.get(key(loc,it.s,it.r)); return v==null?null:v;
+}
+function totalQ(it){let t=null;for(const l of S.locs){const v=getQ(l.id,it);if(v!=null)t=(t||0)+v}return t}
+function sysQ(it){return S.stock&&S.stock.q&&it.cid in S.stock.q?S.stock.q[it.cid]:null}
+function setQ(it,val){
+  const id=docId(S.loc,it.s); const p=S.pending[id]||(S.pending[id]={l:S.loc,s:it.s,q:{}});
+  p.q['r'+it.r]=val; ls.set('inv.pending',S.pending); syncUI(); flush(id);
+}
+async function flush(id){
+  if(!S.db||!S.ready||S.readonly||S.inflight[id]) return;
+  const p=S.pending[id]; if(!p||!Object.keys(p.q).length) return;
+  S.inflight[id]=true; syncUI();
+  const patch=Object.assign({},p.q), ref=S.db.doc('counts/'+id);
+  try{
+    if(!S.docs.has(id)){const g=await ref.get(); if(!g.exists) await ref.set({l:p.l,s:p.s,q:{}}); S.docs.add(id)}
+    await ref.update({q:patch});
+    for(const k in patch){
+      const kk=key(p.l,p.s,k.slice(1)); if(patch[k]==null) S.remote.delete(kk); else S.remote.set(kk,patch[k]);
+      if(p.q[k]===patch[k]) delete p.q[k];
+    }
+    if(!Object.keys(p.q).length) delete S.pending[id];
+    ls.set('inv.pending',S.pending); S.inflight[id]=false; S.fail=0; syncUI();
+    if(S.pending[id]) flush(id);
+  }catch(e){
+    S.inflight[id]=false;
+    if(e&&e.code==='invalid_argument'){S.readonly=true}
+    else if(e&&e.code==='quota_exceeded'){toast('Storage for this page is full. Export the count, then start a new count.')}
+    else{S.fail=(S.fail||0)+1; setTimeout(flushAll,Math.min(30000,3000*S.fail))}
+    syncUI();
+  }
+}
+function flushAll(){for(const id in S.pending) flush(id)}
+function pendingCount(){let n=0;for(const id in S.pending)n+=Object.keys(S.pending[id].q).length;return n}
+function syncUI(){
+  const el=$('#sync'),n=pendingCount();let cls='',t='Saved';
+  if(LOCAL){t='On this phone'}
+  else if(S.local){cls='off';t='This phone only'}
+  else if(S.readonly){cls='off';t='View only'}
+  else if(!S.ready){cls='busy';t='Loading'}
+  else if(n&&S.fail){cls='off';t=n+' waiting'}
+  else if(n){cls='busy';t='Saving'}
+  el.className='sync '+cls; el.lastElementChild.textContent=t;
+}
+async function initDb(){
+  if(LOCAL){S.local=true;S.ready=true;S.locs=ls.get('inv.locs',S.locs);S.stock=ls.get('inv.stock',null);if(!S.locs.some(l=>l.id===S.loc))S.loc=S.locs[0].id;fillLoc();syncUI();render();return}
+  let db=null; try{db=window.claude&&window.claude.use?await window.claude.use('db'):null}catch(e){}
+  if(!db){S.local=true;S.ready=true;syncUI();render();return}
+  S.db=db;
+  db.collection('counts').limit(1000).onSnapshot(snap=>{
+    const m=new Map();
+    snap.docs.forEach(d=>{S.docs.add(d.id);const b=d.data()||{};const q=b.q||{};for(const k in q){if(q[k]!=null)m.set(key(b.l,b.s,k.slice(1)),q[k])}});
+    S.remote=m; const first=!S.ready; S.ready=true; syncUI();
+    if(first) flushAll();
+    softRender();
+  },()=>{S.local=true;S.ready=true;syncUI();render()});
+  db.doc('meta/locations').onSnapshot(d=>{
+    const b=d.exists?d.data():null;
+    if(b&&Array.isArray(b.list)&&b.list.length){S.locs=b.list;if(!S.locs.some(l=>l.id===S.loc))S.loc=S.locs[0].id;fillLoc();softRender()}
+  },()=>{});
+  db.doc('meta/stock').onSnapshot(d=>{S.stock=d.exists?d.data():null;softRender()},()=>{});
+}
+function softRender(){ if(document.activeElement&&/^(INPUT|SELECT)$/.test(document.activeElement.tagName)&&document.activeElement.id!=='loc') return; if(S.tab==='count') refreshValues(); else render() }
+async function saveLocs(){ if(LOCAL) return ls.set('inv.locs',S.locs); if(!S.db) return; try{await S.db.doc('meta/locations').set({list:S.locs})}catch(e){toast('Could not save locations')} }
+
+/* ---------- header ---------- */
+function fillLoc(){ $('#loc').innerHTML=S.locs.map(l=>`<option value="${esc(l.id)}"${l.id===S.loc?' selected':''}>${esc(l.name)}</option>`).join('') }
+$('#loc').addEventListener('change',e=>{S.loc=e.target.value;ls.set('inv.loc',S.loc);render()});
+let st=0;
+$('#search').addEventListener('input',e=>{clearTimeout(st);st=setTimeout(()=>{S.q=e.target.value.trim();if(S.tab!=='count')setTab('count');else render()},180)});
+$('#search').addEventListener('keydown',e=>{if(e.key==='Enter'){const i=S.codes.get(e.target.value.trim().toUpperCase());if(i!=null){e.target.value='';S.q='';render();openSheet(S.items[i])}}});
+document.querySelectorAll('nav.tabs button').forEach(b=>b.addEventListener('click',()=>setTab(b.dataset.tab)));
+function setTab(t){S.tab=t;document.querySelectorAll('nav.tabs button').forEach(b=>b.dataset.tab===t?b.setAttribute('aria-current','page'):b.removeAttribute('aria-current'));$('#searchbar').hidden=t!=='count';render();window.scrollTo(0,0)}
+
+/* ---------- render ---------- */
+function thumbStyle(t,size){const g=S.grid;return `background-image:url(img/a${Math.floor(t/(g*g))}.webp);background-size:${g*size}px ${g*size}px;background-position:-${(t%(g*g))%g*size}px -${Math.floor((t%(g*g))/g)*size}px`}
+function render(){
+  if(!S.items.length) return;
+  if(S.tab==='summary') return renderSummary();
+  if(S.tab==='more') return renderMore();
+  if(S.q||S.cat!=null) return renderList();
+  renderCats();
+}
+function catStats(loc){
+  const a=S.cats.map(()=>({n:0,c:0,qty:0,all:0}));
+  for(const it of S.items){const x=a[it.s];x.n++;const v=getQ(loc,it);if(v!=null){x.c++;x.qty+=v}const t=totalQ(it);if(t!=null)x.all+=t}
+  return a;
+}
+function banner(){
+  if(window.STANDALONE&&/iP(hone|ad|od)/.test(navigator.userAgent)&&!navigator.standalone&&!S.hintOff) return `<div class="banner">To install on this iPhone: tap the Share button, then <b>Add to Home Screen</b>, and count from that icon. Counts entered here in Safari stay in Safari. <button type="button" data-act="hint" style="text-decoration:underline;font-weight:600">Hide</button></div>`;
+  if(LOCAL) return '';
+  if(S.local) return `<div class="banner">Counts are being kept on this phone only. Open this page while signed in to Claude to save them to the shared count.</div>`;
+  if(S.readonly) return `<div class="banner">You have view-only access, so counts you enter are not saved to the shared count. Ask the owner for Contributor access.</div>`;
+  return '';
+}
+function renderCats(){
+  const st=catStats(S.loc); let n=0,c=0; st.forEach(x=>{n+=x.n;c+=x.c});
+  main.innerHTML=banner()+`<h2>Categories · <span class="num">${fmt(c)} of ${fmt(n)}</span> items counted</h2><ul class="cats">`+
+    S.cats.map((name,i)=>{const x=st[i];return `<li><button type="button" class="cat${x.c===x.n?' done':''}" data-cat="${i}"><b>${esc(name)}</b><span class="n num">${x.c} / ${x.n}</span><span class="prog"><span style="width:${x.n?x.c/x.n*100:0}%"></span></span></button></li>`}).join('')+`</ul>`;
+}
+function buildList(){
+  const toks=S.q.toLowerCase().split(/\s+/).filter(Boolean);
+  S.list=S.items.filter(it=>{
+    if(!toks.length&&it.s!==S.cat) return false;
+    if(toks.length&&!toks.every(t=>it.h.includes(t))) return false;
+    if(S.filter==='all') return true; const v=getQ(S.loc,it);
+    return S.filter==='todo'?v==null:v!=null;
+  });
+}
+function renderList(){
+  buildList(); S.shown=0;
+  const title=S.q?`Results for “${esc(S.q)}”`:esc(S.cats[S.cat]);
+  main.innerHTML=banner()+`<div class="listhead"><button type="button" class="back" id="back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>All</button><div class="ttl">${title}</div><span class="note num" id="lcount"></span></div>
+  <div class="chips">${[['all','All'],['todo','To count'],['done','Counted']].map(([k,l])=>`<button type="button" class="chip" data-filter="${k}" aria-pressed="${S.filter===k}">${l}</button>`).join('')}</div>
+  <ul class="rows" id="rows"></ul><div id="more"></div>`;
+  $('#lcount').textContent=fmt(S.list.length)+' items';
+  if(!S.list.length){$('#rows').outerHTML=`<p class="empty">${S.q?'No item matches that search.':'Nothing here with this filter.'}</p>`;return}
+  moreRows(); io.observe($('#more'));
+}
+function subLine(it){
+  const sys=sysQ(it), tot=totalQ(it), mine=getQ(S.loc,it); let s='',cls='sub';
+  if(sys!=null){ if(tot!=null&&tot!==sys){s=`sys ${fmt(sys)} · ${tot>sys?'+':''}${fmt(tot-sys)}`;cls='sub var'} else s='sys '+fmt(sys) }
+  else if(S.locs.length>1&&tot!=null&&tot!==mine) s='all '+fmt(tot);
+  return `<div class="${cls} num">${s}</div>`;
+}
+function rowHtml(it){
+  const v=getQ(S.loc,it);
+  const th=it.t>=0?`<button type="button" class="thumb" data-open="${it.i}" aria-label="Open photo" style="${thumbStyle(it.t,64)}"></button>`:`<button type="button" class="thumb none" data-open="${it.i}">No photo</button>`;
+  return `<li class="row${v!=null?' counted':''}" data-i="${it.i}">${th}
+   <button type="button" class="txt" data-open="${it.i}"><div class="d">${esc(it.d)}</div><div class="c mono">${esc(it.cid)}${it.sku?' · '+esc(it.sku):''}</div><div class="m">${esc([it.u,it.st,S.q?S.cats[it.s]:''].filter(Boolean).join(' · '))}</div></button>
+   <div class="q"><input id="q${it.i}" data-q="${it.i}" inputmode="decimal" enterkeyhint="next" autocomplete="off" aria-label="Counted quantity" placeholder="–" value="${v==null?'':v}">${subLine(it)}</div></li>`;
+}
+function moreRows(){
+  const ul=$('#rows'); if(!ul||S.shown>=S.list.length) return;
+  ul.insertAdjacentHTML('beforeend',S.list.slice(S.shown,S.shown+40).map(rowHtml).join('')); S.shown+=40;
+}
+const io=new IntersectionObserver(es=>{if(es.some(e=>e.isIntersecting))moreRows()},{rootMargin:'600px'});
+function refreshValues(){
+  if(S.tab!=='count') return;
+  if(!S.q&&S.cat==null){renderCats();return}
+  document.querySelectorAll('.row').forEach(li=>{
+    const it=S.items[+li.dataset.i], v=getQ(S.loc,it), inp=li.querySelector('input');
+    if(document.activeElement!==inp) inp.value=v==null?'':v;
+    li.classList.toggle('counted',v!=null); li.querySelector('.sub').outerHTML=subLine(it);
+  });
+}
+function parseQty(s){s=String(s).trim().replace(',','.');if(s==='')return null;const n=Number(s);return isFinite(n)&&n>=0?Math.round(n*1000)/1000:undefined}
+function commit(it,raw){
+  const v=parseQty(raw); if(v===undefined){toast('Enter a number, 0 or more');return false}
+  if(v!==getQ(S.loc,it)) setQ(it,v); return true;
+}
+
+main.addEventListener('click',e=>{
+  const t=e.target.closest('button'); if(!t) return;
+  if(t.dataset.cat!=null){S.cat=+t.dataset.cat;S.filter='all';render();window.scrollTo(0,0)}
+  else if(t.id==='back'){S.cat=null;S.q='';$('#search').value='';render()}
+  else if(t.dataset.filter){S.filter=t.dataset.filter;render()}
+  else if(t.dataset.open!=null){openSheet(S.items[+t.dataset.open])}
+  else if(t.dataset.act) actions[t.dataset.act](t);
+});
+main.addEventListener('change',e=>{
+  const t=e.target;
+  if(t.dataset.q!=null){const it=S.items[+t.dataset.q];if(!commit(it,t.value))t.value=getQ(S.loc,it)??'';refreshValues()}
+  else if(t.dataset.locname!=null){const l=S.locs.find(x=>x.id===t.dataset.locname);const v=t.value.trim();if(l&&v){l.name=v;fillLoc();saveLocs()}else if(l)t.value=l.name}
+});
+main.addEventListener('keydown',e=>{
+  if(e.key==='Enter'&&e.target.dataset.q!=null){e.preventDefault();const li=e.target.closest('.row').nextElementSibling;e.target.blur();if(li)li.querySelector('input').focus()}
+});
+main.addEventListener('focusin',e=>{if(e.target.dataset.q!=null)e.target.select()});
+
+/* ---------- detail sheet ---------- */
+function openSheet(it){S.sheet=it;drawSheet()}
+function closeSheet(){S.sheet=null;$('#sheetroot').innerHTML='';refreshValues()}
+function drawSheet(){
+  const it=S.sheet, v=getQ(S.loc,it), sys=sysQ(it), tot=totalQ(it), pos=S.list.indexOf(it);
+  const locName=(S.locs.find(l=>l.id===S.loc)||{}).name||'';
+  const rows=[['CID code',it.cid],['BC code',it.bc],['SKU code',it.sku],['Category',S.cats[it.s]],['UOM',it.u],['Status',it.st],['Zone',it.z]].filter(r=>r[1]);
+  let extra='';
+  if(S.locs.length>1||sys!=null){
+    extra=`<table class="num"><tbody>`+(S.locs.length>1?S.locs.map(l=>`<tr><td>${esc(l.name)}</td><td>${fmt(getQ(l.id,it))||'–'}</td></tr>`).join('')+`<tr><td><b>All locations</b></td><td><b>${fmt(tot)||'–'}</b></td></tr>`:'')+
+      (sys!=null?`<tr><td>System stock</td><td>${fmt(sys)}</td></tr><tr><td>Variance</td><td class="${tot==null?'':tot-sys<0?'neg':'pos'}">${tot==null?'–':(tot-sys>0?'+':'')+fmt(tot-sys)}</td></tr>`:'')+`</tbody></table>`;
+  }
+  $('#sheetroot').innerHTML=`<div class="scrim" id="scrim"><div class="sheet" role="dialog" aria-modal="true" aria-label="Item">
+   <div class="hd"><span>Counting at <b>${esc(locName)}</b></span><button type="button" class="btn ghost" data-s="close" style="height:36px">Close</button></div>
+   ${it.t>=0?`<div class="big" style="${thumbStyle(it.t,220)}"></div>`:`<div class="big none">No photo</div>`}
+   <h3>${esc(it.d)}</h3>
+   <dl class="kv">${rows.map(r=>`<dt>${r[0]}</dt><dd class="${/code/.test(r[0])?'mono':''}">${esc(r[1])}</dd>`).join('')}</dl>
+   <div class="step"><button type="button" data-s="add" data-n="-1" aria-label="Minus one">−</button><input id="sheetqty" inputmode="decimal" enterkeyhint="done" autocomplete="off" aria-label="Counted quantity" placeholder="–" value="${v==null?'':v}"><button type="button" data-s="add" data-n="1" aria-label="Plus one">+</button></div>
+   <div class="quick"><button type="button" data-s="add" data-n="5">+5</button><button type="button" data-s="add" data-n="10">+10</button><button type="button" data-s="add" data-n="50">+50</button><button type="button" data-s="clear">Clear</button></div>
+   ${extra}
+   <div class="pair" style="margin-top:12px"><button type="button" class="btn ghost" data-s="prev" ${pos>0?'':'disabled'}>Previous</button><button type="button" class="btn" data-s="next" ${pos>=0&&pos<S.list.length-1?'':'disabled'}>Next item</button></div>
+  </div></div>`;
+}
+$('#sheetroot').addEventListener('click',e=>{
+  if(e.target.id==='scanclose') return stopScan();
+  if(e.target.id==='scrim'){saveSheet();return closeSheet()}
+  const b=e.target.closest('button'); if(!b||!b.dataset.s) return; const it=S.sheet, a=b.dataset.s;
+  if(a==='close'){saveSheet();closeSheet()}
+  else if(a==='add'){const cur=parseQty($('#sheetqty').value);const nv=Math.max(0,(cur||0)+Number(b.dataset.n));setQ(it,Math.round(nv*1000)/1000);drawSheet()}
+  else if(a==='clear'){if(getQ(S.loc,it)!=null)setQ(it,null);drawSheet()}
+  else if(a==='prev'||a==='next'){saveSheet();const p=S.list.indexOf(it)+(a==='next'?1:-1);if(S.list[p]){S.sheet=S.list[p];drawSheet()}}
+});
+function saveSheet(){const i=$('#sheetqty');if(i&&S.sheet)commit(S.sheet,i.value)}
+$('#sheetroot').addEventListener('change',e=>{if(e.target.id==='sheetqty'){if(commit(S.sheet,e.target.value))drawSheet()}});
+$('#sheetroot').addEventListener('focusin',e=>{if(e.target.id==='sheetqty')e.target.select()});
+
+/* ---------- summary ---------- */
+function renderSummary(){
+  const st=catStats(S.loc); let n=0,c=0,qty=0,all=0; st.forEach(x=>{n+=x.n;c+=x.c;qty+=x.qty;all+=x.all});
+  const multi=S.locs.length>1, locName=(S.locs.find(l=>l.id===S.loc)||{}).name||'';
+  let h=`<h2>${esc(locName)}</h2><div class="stats">
+    <div class="card stat"><b class="num">${fmt(c)}</b><span>of ${fmt(n)} items counted</span></div>
+    <div class="card stat"><b class="num">${fmt(qty)}</b><span>units counted here</span></div>
+    ${multi?`<div class="card stat"><b class="num">${fmt(all)}</b><span>units, all locations</span></div>`:''}</div>`;
+  if(S.stock&&S.stock.q){
+    const v=[];let match=0,un=0;
+    for(const it of S.items){const sys=sysQ(it);if(sys==null)continue;const t=totalQ(it);if(t==null){if(sys>0)un++;continue}if(t===sys)match++;else v.push([it,t-sys,sys,t])}
+    v.sort((a,b)=>Math.abs(b[1])-Math.abs(a[1]));
+    h+=`<h2>Against system stock</h2><div class="stats"><div class="card stat"><b class="num">${fmt(match)}</b><span>items match</span></div><div class="card stat"><b class="num">${fmt(v.length)}</b><span>items differ</span></div><div class="card stat"><b class="num">${fmt(un)}</b><span>in system, not counted yet</span></div></div>`;
+    if(v.length) h+=`<div class="card" style="margin-top:8px;padding:4px 10px"><table class="num"><thead><tr><th>Largest differences</th><th>System</th><th>Counted</th><th>Diff</th></tr></thead><tbody>`+
+      v.slice(0,60).map(([it,d,sys,t])=>`<tr><td><button type="button" class="tap" data-open="${it.i}">${esc(it.d)}<br><span class="mono" style="color:var(--muted)">${esc(it.cid)}</span></button></td><td>${fmt(sys)}</td><td>${fmt(t)}</td><td class="${d<0?'neg':'pos'}">${d>0?'+':''}${fmt(d)}</td></tr>`).join('')+`</tbody></table></div>`+(v.length>60?`<p class="note">Showing the 60 largest. The Excel export lists all ${fmt(v.length)}.</p>`:'');
+  } else h+=`<h2>Against system stock</h2><p class="note">No system stock loaded yet. Import it under Setup &amp; export to see differences here.</p>`;
+  h+=`<h2>By category</h2><div class="card" style="padding:4px 10px"><table class="num"><thead><tr><th>Category</th><th>Counted</th><th>Qty here</th>${multi?'<th>Qty all</th>':''}</tr></thead><tbody>`+
+    S.cats.map((name,i)=>`<tr><td>${esc(name)}</td><td>${st[i].c} / ${st[i].n}</td><td>${fmt(st[i].qty)}</td>${multi?`<td>${fmt(st[i].all)}</td>`:''}</tr>`).join('')+`</tbody></table></div>`;
+  main.innerHTML=h;
+}
+
+/* ---------- setup & export ---------- */
+function renderMore(){
+  const noPic=S.items.filter(i=>i.t<0).length;
+  main.innerHTML=banner()+`<h2>Export</h2><div class="card stack"><p class="note" style="margin:0">Downloads an Excel file with every item, the quantity per location, the total, system stock and variance, plus a Master data sheet laid out like yours.</p><button type="button" class="btn" data-act="export">Export count to Excel</button></div>
+  <h2>Locations</h2><div class="card"><p class="note" style="margin:0 0 10px">Each location keeps its own count. Pick the one you are standing in at the top of the screen.</p>
+   ${S.locs.map(l=>`<div class="locrow"><input id="ln_${esc(l.id)}" data-locname="${esc(l.id)}" value="${esc(l.name)}" aria-label="Location name" maxlength="40">${S.locs.length>1?`<button type="button" class="btn danger" data-act="delloc" data-id="${esc(l.id)}">Remove</button>`:''}</div>`).join('')}
+   <div class="locrow" style="margin:0"><input id="newloc" placeholder="New location, e.g. Warehouse" maxlength="40"><button type="button" class="btn ghost" data-act="addloc">Add</button></div></div>
+  <h2>System stock</h2><div class="card stack"><p class="note" style="margin:0">${S.stock&&S.stock.q?`Loaded <b>${esc(S.stock.name||'file')}</b>: ${fmt(Object.keys(S.stock.q).length)} items matched.`:'Not loaded.'} Choose an Excel or CSV export from your system that has a code column (CID, BC or SKU) and a quantity column.</p>
+   <div class="pair"><button type="button" class="btn ghost" data-act="stock">Import stock file</button>${S.stock&&S.stock.q?`<button type="button" class="btn danger" data-act="delstock">Remove stock</button>`:'<span></span>'}</div></div>
+  <h2>New count</h2><div class="card stack"><p class="note" style="margin:0">Erases every counted quantity in all locations so you can start the next stock take. Export first.</p><button type="button" class="btn danger" data-act="reset">Erase all counts</button></div>
+  <h2>Item list</h2><p class="note">${fmt(S.items.length)} items in ${S.cats.length} categories from “${esc(S.source)}”. ${fmt(noPic)} items had no picture in the workbook.</p>`;
+}
+function armed(b,label){ if(b.dataset.armed){return true} b.dataset.armed='1'; b.dataset.old=b.textContent; b.textContent=label; setTimeout(()=>{if(b.isConnected){delete b.dataset.armed;b.textContent=b.dataset.old}},4000); return false }
+const actions={
+  addloc(){const i=$('#newloc'),v=i.value.trim();if(!v)return toast('Type a location name first');S.locs.push({id:'L'+Date.now().toString(36),name:v});fillLoc();saveLocs();renderMore()},
+  async delloc(b){
+    const id=b.dataset.id; const has=S.items.some(it=>getQ(id,it)!=null);
+    if(!armed(b,has?'Tap again: deletes its counts':'Tap again to remove')) return;
+    S.locs=S.locs.filter(l=>l.id!==id); if(S.loc===id){S.loc=S.locs[0].id;ls.set('inv.loc',S.loc)}
+    await wipe(d=>d.startsWith(id+'_s')); fillLoc(); saveLocs(); renderMore();
+  },
+  async reset(b){ if(!armed(b,'Tap again to erase everything')) return; await wipe(()=>true); toast('All counts erased'); renderMore() },
+  stock(){ $('#stockfile').click() },
+  async delstock(b){ if(!armed(b,'Tap again to remove')) return; if(LOCAL) ls.set('inv.stock',null); else try{await S.db.doc('meta/stock').delete()}catch(e){} S.stock=null; renderMore() },
+  export(b){ doExport(b) },
+  hint(){ S.hintOff=true; render() }
+};
+async function wipe(match){
+  for(const id of Object.keys(S.pending)) if(match(id)) delete S.pending[id]; ls.set('inv.pending',S.pending);
+  for(const k of [...S.remote.keys()]){const p=k.split('|');if(match(docId(p[0],p[1])))S.remote.delete(k)}
+  if(S.db) for(const id of [...S.docs]) if(match(id)){try{await S.db.doc('counts/'+id).delete();S.docs.delete(id)}catch(e){toast('Could not erase everything. Try again when online.')}}
+  syncUI();
+}
+
+/* ---------- libraries on demand ---------- */
+const libs={}; function lib(src){return libs[src]||(libs[src]=new Promise((ok,no)=>{const s=document.createElement('script');s.src=src;s.onload=ok;s.onerror=()=>{delete libs[src];no(new Error('load'))};document.head.appendChild(s)}))}
+const XLSX_URL=LOCAL?'xlsx.full.min.js':'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js', ZX_URL=LOCAL?'zxing.min.js':'https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js';
+
+async function doExport(b){
+  b.disabled=true; const old=b.textContent; b.textContent='Preparing…';
+  try{
+    await lib(XLSX_URL); const X=window.XLSX, L=S.locs;
+    const head=['Category','CID Code','BC Code','SKU Code','Description','UOM','Status',...L.map(l=>l.name),'Total QTY','System stock','Variance'];
+    const rows=[head], byCid=new Map();
+    for(const it of S.items){
+      const per=L.map(l=>getQ(l.id,it)), tot=totalQ(it), sys=sysQ(it);
+      rows.push([S.cats[it.s],it.cid,it.bc,it.sku,it.d,it.u,it.st,...per.map(v=>v==null?'':v),tot==null?'':tot,sys==null?'':sys,(tot!=null&&sys!=null)?tot-sys:'']);
+      let m=byCid.get(it.cid); if(!m){m={it,c:S.cats.map(()=>0)};byCid.set(it.cid,m)} m.c[it.s]+=tot||0;
+    }
+    const master=[['CID Code','RMT Code','Vendor Code','Description',...S.cats,'TOTAL']];
+    byCid.forEach(m=>master.push([m.it.cid,m.it.bc,m.it.sku,m.it.d,...m.c,m.c.reduce((a,x)=>a+x,0)]));
+    const wb=X.utils.book_new(), ws=X.utils.aoa_to_sheet(rows), wm=X.utils.aoa_to_sheet(master);
+    ws['!cols']=[{wch:22},{wch:14},{wch:22},{wch:12},{wch:44},{wch:7},{wch:10},...L.map(()=>({wch:12})),{wch:10},{wch:12},{wch:10}];
+    wm['!cols']=[{wch:14},{wch:22},{wch:12},{wch:44}];
+    X.utils.book_append_sheet(wb,ws,'Count sheet'); X.utils.book_append_sheet(wb,wm,'Master data');
+    const name='Stock count '+new Date().toISOString().slice(0,10)+'.xlsx';
+    if(NATIVE){const r=window.Android.saveFile(name,X.write(wb,{type:'base64',bookType:'xlsx'}));toast(r==='ok'?'Saved to the Downloads folder':'Could not save the file');b.disabled=false;b.textContent=old;return}
+    const buf=X.write(wb,{type:'array',bookType:'xlsx'});
+    if(window.STANDALONE){offerFile(new File([buf],name,{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));b.disabled=false;b.textContent=old;return}
+    const blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    let dl=null; try{dl=window.claude&&window.claude.use?await window.claude.use('downloads'):null}catch(e){}
+    if(dl){ try{await dl.save({filename:name,data:blob});toast('Excel file saved')}catch(e){ if(e&&e.code!=='declined') toast(e&&e.code==='rate_limited'?'A save is already open. Try again in a moment.':'Saving files is not available in this view.') } }
+    else if(!window.claude){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click()}
+    else toast('Saving files is not available in this view.');
+  }catch(e){toast('Could not build the Excel file. Check your connection and try again.')}
+  b.disabled=false; b.textContent=old;
+}
+
+$('#stockfile').addEventListener('change',async e=>{
+  const f=e.target.files[0]; e.target.value=''; if(!f) return;
+  toast('Reading '+f.name+'…');
+  try{
+    await lib(XLSX_URL); const X=window.XLSX, wb=X.read(await f.arrayBuffer(),{type:'array'});
+    let best=null;
+    for(const sn of wb.SheetNames){
+      const A=X.utils.sheet_to_json(wb.Sheets[sn],{header:1,blankrows:false}); if(A.length<2) continue;
+      const width=Math.max(...A.slice(0,50).map(r=>r.length)); let cc=-1,ch=0;
+      for(let c=0;c<width;c++){let h=0;for(const r of A){if(r[c]!=null&&S.codes.has(String(r[c]).trim().toUpperCase()))h++}if(h>ch){ch=h;cc=c}}
+      if(cc<0) continue;
+      let hr=A.findIndex(r=>r[cc]!=null&&S.codes.has(String(r[cc]).trim().toUpperCase()))-1, qc=-1;
+      const hdr=hr>=0?A[hr]:[];
+      for(let c=0;c<width;c++){if(c!==cc&&/soh|stock|qty|quantity|on.?hand|balance|closing/i.test(String(hdr[c]??'')))qc=c}
+      if(qc<0){let bs=0;for(let c=0;c<width;c++){if(c===cc)continue;let k=0;for(const r of A){if(typeof r[c]==='number')k++}if(k>=bs&&k>0){bs=k;qc=c}}}
+      if(qc<0) continue;
+      const q={};let hit=0;
+      for(const r of A){const i=S.codes.get(String(r[cc]??'').trim().toUpperCase());if(i==null)continue;const n=Number(r[qc]);if(!isFinite(n)||r[qc]===''||r[qc]==null)continue;const cid=S.items[i].cid;q[cid]=(q[cid]||0)+n;hit++}
+      if(!best||hit>best.hit) best={hit,q,col:String(hdr[qc]??'column '+(qc+1))};
+    }
+    if(!best||!best.hit) return toast('No item codes from the count list were found in that file.');
+    const doc={q:best.q,name:f.name,col:best.col,at:new Date().toISOString()};
+    if(LOCAL) ls.set('inv.stock',doc);
+    else if(S.db){ try{await S.db.doc('meta/stock').set(doc)}catch(er){return toast('Could not save the stock file to the shared count.')} }
+    S.stock=doc; toast(`Stock loaded: ${fmt(Object.keys(best.q).length)} items, quantity from “${best.col}”`); render();
+  }catch(er){toast('That file could not be read. Use .xlsx or .csv.')}
+});
+
+/* ---------- barcode from a photo ---------- */
+$('#scan').addEventListener('click',()=>LOCAL?liveScan():$('#scanfile').click());
+function onCode(text){
+  text=String(text).trim(); const i=S.codes.get(text.toUpperCase());
+  if(i!=null){hideToast();if(S.tab!=='count')setTab('count');openSheet(S.items[i])}
+  else{$('#search').value=text;S.q=text;setTab('count');toast('No item has the code '+text)}
+}
+async function liveScan(){
+  if(S.scan) return;
+  const sc=S.scan={stream:null,timer:0};
+  $('#sheetroot').innerHTML=`<div class="scanner" id="scanner"><video id="scanv" playsinline muted autoplay></video><div class="aim"></div><p>Hold the barcode inside the frame</p><button type="button" class="btn ghost" id="scanclose">Cancel</button></div>`;
+  try{
+    await lib(ZX_URL); const Z=window.ZXing, hints=new Map(); hints.set(Z.DecodeHintType.TRY_HARDER,true);
+    const reader=new Z.MultiFormatReader(); reader.setHints(hints);
+    const stream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}}});
+    if(S.scan!==sc){stream.getTracks().forEach(t=>t.stop());return}
+    sc.stream=stream; const v=$('#scanv'); v.srcObject=stream; try{await v.play()}catch(e){}
+    const cv=document.createElement('canvas'), cx=cv.getContext('2d',{willReadFrequently:true});
+    const det=('BarcodeDetector' in window)?new BarcodeDetector():null;
+    const tick=async()=>{
+      if(S.scan!==sc) return; let text=null;
+      if(v.videoWidth){
+        cv.width=v.videoWidth; cv.height=v.videoHeight; cx.drawImage(v,0,0);
+        if(det){try{const r=await det.detect(cv);if(r.length)text=r[0].rawValue}catch(e){}}
+        if(!text){try{text=reader.decode(new Z.BinaryBitmap(new Z.HybridBinarizer(new Z.HTMLCanvasElementLuminanceSource(cv)))).getText()}catch(e){}}
+      }
+      if(S.scan!==sc) return;
+      if(text){stopScan();onCode(text)} else sc.timer=setTimeout(tick,160);
+    };
+    tick();
+  }catch(er){stopScan();toast('The camera could not be opened. Allow camera access for Stock Count in the phone settings.')}
+}
+function stopScan(){const sc=S.scan;S.scan=null;if(sc){clearTimeout(sc.timer);if(sc.stream)sc.stream.getTracks().forEach(t=>t.stop())}const x=$('#scanner');if(x)x.remove()}
+window.appBack=function(){
+  if($('#scanner')){stopScan();return true}
+  if(S.sheet){saveSheet();closeSheet();return true}
+  if(S.tab!=='count'){setTab('count');return true}
+  if(S.q||S.cat!=null){S.cat=null;S.q='';$('#search').value='';render();return true}
+  return false;
+};
+$('#scanfile').addEventListener('change',async e=>{
+  const f=e.target.files[0]; e.target.value=''; if(!f) return;
+  toast('Reading barcode…');
+  let text=null;
+  try{
+    const bmp=await createImageBitmap(f), k=Math.min(1,1800/Math.max(bmp.width,bmp.height));
+    const cv=document.createElement('canvas'); cv.width=Math.round(bmp.width*k); cv.height=Math.round(bmp.height*k);
+    cv.getContext('2d').drawImage(bmp,0,0,cv.width,cv.height);
+    if('BarcodeDetector' in window){try{const r=await new BarcodeDetector().detect(cv);if(r.length)text=r[0].rawValue}catch(er){}}
+    if(!text){
+      await lib(ZX_URL); const Z=window.ZXing, hints=new Map(); hints.set(Z.DecodeHintType.TRY_HARDER,true);
+      try{const r=await new Z.BrowserMultiFormatReader(hints).decodeFromImageUrl(cv.toDataURL('image/jpeg',.92));text=r.getText()}catch(er){}
+    }
+  }catch(er){}
+  if(!text) return toast('No barcode found in that photo. Fill the frame with the barcode and try again.');
+  onCode(text);
+});
+
+function offerFile(file){
+  const url=URL.createObjectURL(file), can=!!(navigator.canShare&&navigator.canShare({files:[file]}));
+  $('#sheetroot').innerHTML=`<div class="scrim" id="filescrim"><div class="sheet"><div class="hd"><b>The Excel file is ready</b><button type="button" class="btn ghost" id="fileclose" style="height:36px">Close</button></div><p class="note" style="margin:0 0 12px">${esc(file.name)}</p><div class="stack">${can?'<button type="button" class="btn" id="fileshare">Share or save the file</button>':''}<a class="btn ghost" id="filedl" href="${url}" download="${esc(file.name)}" style="justify-content:center;text-decoration:none">Download</a></div></div></div>`;
+  S.file=file;
+}
+$('#sheetroot').addEventListener('click',async e=>{
+  if(e.target.id==='fileclose'||e.target.id==='filescrim'){$('#sheetroot').innerHTML='';S.file=null}
+  else if(e.target.id==='fileshare'&&S.file){try{await navigator.share({files:[S.file]})}catch(er){}}
+});
+if(window.STANDALONE){
+  try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
+  if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
+}
+let tt=0; function toast(m){const t=$('#toast');t.textContent=m;t.hidden=false;clearTimeout(tt);tt=setTimeout(hideToast,3800)} function hideToast(){$('#toast').hidden=true}
+
+/* ---------- boot ---------- */
+fillLoc(); syncUI();
+fetch('items.json').then(r=>r.json()).then(d=>{
+  S.cats=d.cats;S.tile=d.tile;S.grid=d.grid;S.source=d.source;
+  S.items=d.items.map((a,i)=>({i,s:a[0],r:a[1],cid:a[2],bc:a[3],sku:a[4],d:a[5],u:a[6],st:a[7],z:a[8],t:a[9],h:(a[5]+' '+a[2]+' '+a[3]+' '+a[4]).toLowerCase()}));
+  S.items.forEach(it=>{for(const c of [it.sku,it.bc,it.cid]){if(c){S.codes.set(c.toUpperCase(),it.i)}}});
+  S.items.forEach(it=>{if(it.cid)S.codes.set(it.cid.toUpperCase(),it.i)});
+  render(); initDb();
+}).catch(()=>{main.innerHTML='<p class="empty">The item list could not be loaded. Check your connection and reload.</p>'});
+window.addEventListener('online',flushAll);
+})();
+</script>
+
+</body>
+</html>
