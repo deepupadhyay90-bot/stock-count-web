@@ -163,6 +163,7 @@ th{color:var(--muted);font-weight:500;font-size:12px}
 
 <input id="scanfile" type="file" accept="image/*" capture="environment" hidden>
 <input id="stockfile" type="file" accept=".xlsx,.xls,.csv" hidden>
+<input id="masterfile" type="file" accept=".xlsx" hidden>
 <div id="sheetroot"></div>
 <div id="toast" role="status" hidden></div>
 
@@ -262,6 +263,9 @@ function setTab(t){S.tab=t;document.querySelectorAll('nav.tabs button').forEach(
 
 /* ---------- render ---------- */
 function thumbStyle(t,size){const g=S.grid;return `background-image:url(img/a${Math.floor(t/(g*g))}.webp);background-size:${g*size}px ${g*size}px;background-position:-${(t%(g*g))%g*size}px -${Math.floor((t%(g*g))/g)*size}px`}
+const pics=new Map();
+function hasPic(it){return (it.pic&&pics.has(it.pic))||it.t>=0}
+function picStyle(it,size){return it.pic&&pics.has(it.pic)?`background-image:url(${pics.get(it.pic)});background-size:contain;background-position:center`:thumbStyle(it.t,size)}
 function render(){
   if(!S.items.length) return;
   if(S.tab==='summary') return renderSummary();
@@ -283,9 +287,9 @@ function banner(){
 }
 function renderCats(){
   const st=catStats(S.loc); let n=0,c=0; st.forEach(x=>{n+=x.n;c+=x.c});
-  const PR=['Top 30','30 to 50','51 to 100','Above 100'], ps=PR.map(()=>({n:0,c:0}));
+  const KP=['Top 30','30 to 50','51 to 100','Above 100'], PR=KP.concat([...new Set(S.items.map(i=>i.pr).filter(p=>p&&!KP.includes(p)))].sort()), ps=PR.map(()=>({n:0,c:0}));
   for(const it of S.items){const k=PR.indexOf(it.pr);if(k<0)continue;ps[k].n++;if(getQ(S.loc,it)!=null)ps[k].c++}
-  const prHtml=ps.some(x=>x.n)?`<h2>Priority flowers &amp; fillers</h2><ul class="cats">`+PR.map((name,k)=>ps[k].n?`<li><button type="button" class="cat${ps[k].c===ps[k].n?' done':''}" data-prio="${name}"><b>${name}</b><span class="n num">${ps[k].c} / ${ps[k].n}</span><span class="prog"><span style="width:${ps[k].c/ps[k].n*100}%"></span></span></button></li>`:'').join('')+`</ul>`:'';
+  const prHtml=ps.some(x=>x.n)?`<h2>Priority items</h2><ul class="cats">`+PR.map((name,k)=>ps[k].n?`<li><button type="button" class="cat${ps[k].c===ps[k].n?' done':''}" data-prio="${esc(name)}"><b>${esc(name)}</b><span class="n num">${ps[k].c} / ${ps[k].n}</span><span class="prog"><span style="width:${ps[k].c/ps[k].n*100}%"></span></span></button></li>`:'').join('')+`</ul>`:'';
   main.innerHTML=banner()+prHtml+`<h2>Categories · <span class="num">${fmt(c)} of ${fmt(n)}</span> items counted</h2><ul class="cats">`+
     S.cats.map((name,i)=>{const x=st[i];return `<li><button type="button" class="cat${x.c===x.n?' done':''}" data-cat="${i}"><b>${esc(name)}</b><span class="n num">${x.c} / ${x.n}</span><span class="prog"><span style="width:${x.n?x.c/x.n*100:0}%"></span></span></button></li>`}).join('')+`</ul>`;
 }
@@ -317,7 +321,7 @@ function subLine(it){
 }
 function rowHtml(it){
   const v=getQ(S.loc,it);
-  const th=it.t>=0?`<button type="button" class="thumb" data-open="${it.i}" aria-label="Open photo" style="${thumbStyle(it.t,64)}"></button>`:`<button type="button" class="thumb none" data-open="${it.i}">No photo</button>`;
+  const th=hasPic(it)?`<button type="button" class="thumb" data-open="${it.i}" aria-label="Open photo" style="${picStyle(it,64)}"></button>`:`<button type="button" class="thumb none" data-open="${it.i}">No photo</button>`;
   return `<li class="row${v!=null?' counted':''}" data-i="${it.i}">${th}
    <button type="button" class="txt" data-open="${it.i}"><div class="d">${esc(it.d)}</div><div class="c mono">${esc(it.cid)}${it.sku?' · '+esc(it.sku):''}</div><div class="m">${esc([it.u,it.st,S.q?S.cats[it.s]:'',it.pr&&!S.prio?'Priority '+it.pr:'',S.prio?it.ty:''].filter(Boolean).join(' · '))}</div></button>
    <div class="q"><input id="q${it.i}" data-q="${it.i}" inputmode="decimal" enterkeyhint="next" autocomplete="off" aria-label="Counted quantity" placeholder="–" value="${v==null?'':v}">${subLine(it)}</div></li>`;
@@ -375,7 +379,7 @@ function drawSheet(){
   }
   $('#sheetroot').innerHTML=`<div class="scrim" id="scrim"><div class="sheet" role="dialog" aria-modal="true" aria-label="Item">
    <div class="hd"><span>Counting at <b>${esc(locName)}</b></span><button type="button" class="btn ghost" data-s="close" style="height:36px">Close</button></div>
-   ${it.t>=0?`<div class="big" style="${thumbStyle(it.t,220)}"></div>`:`<div class="big none">No photo</div>`}
+   ${hasPic(it)?`<div class="big" style="${picStyle(it,220)}"></div>`:`<div class="big none">No photo</div>`}
    <h3>${esc(it.d)}</h3>
    <dl class="kv">${rows.map(r=>`<dt>${r[0]}</dt><dd class="${/code/.test(r[0])?'mono':''}">${esc(r[1])}</dd>`).join('')}</dl>
    <div class="step"><button type="button" data-s="add" data-n="-1" aria-label="Minus one">−</button><input id="sheetqty" inputmode="decimal" enterkeyhint="done" autocomplete="off" aria-label="Counted quantity" placeholder="–" value="${v==null?'':v}"><button type="button" data-s="add" data-n="1" aria-label="Plus one">+</button></div>
@@ -420,15 +424,18 @@ function renderSummary(){
 
 /* ---------- setup & export ---------- */
 function renderMore(){
-  const noPic=S.items.filter(i=>i.t<0).length;
+  const noPic=S.items.filter(i=>!hasPic(i)).length, ov=S.ov;
+  const masterHtml=LOCAL?`<h2>Item master</h2><div class="card stack"><p class="note" style="margin:0">${ov?`Loaded <b>${esc(ov.name||'file')}</b>: ${fmt(Object.keys(ov.rows).length)} items updated or added${ov.only?', and the list shows only those items':''}. `:''}Upload an Excel file (.xlsx) with your items to update names, priorities and pictures or add new items. Columns: Image, CID Code, BC Code, SKU Code, Description, UOM, Status, Category, Priority. Counts already entered are kept.</p>
+   <div class="pair"><button type="button" class="btn ghost" data-act="master">Import master file</button>${ov?`<button type="button" class="btn danger" data-act="delmaster">Restore built-in list</button>`:'<span></span>'}</div></div>`:'';
   main.innerHTML=banner()+`<h2>Export</h2><div class="card stack"><p class="note" style="margin:0">Downloads an Excel file with every item, the quantity per location, the total, system stock and variance, plus a Master data sheet laid out like yours.</p><button type="button" class="btn" data-act="export">Export count to Excel</button></div>
   <h2>Locations</h2><div class="card"><p class="note" style="margin:0 0 10px">Each location keeps its own count. Pick the one you are standing in at the top of the screen.</p>
    ${S.locs.map(l=>`<div class="locrow"><input id="ln_${esc(l.id)}" data-locname="${esc(l.id)}" value="${esc(l.name)}" aria-label="Location name" maxlength="40">${S.locs.length>1?`<button type="button" class="btn danger" data-act="delloc" data-id="${esc(l.id)}">Remove</button>`:''}</div>`).join('')}
    <div class="locrow" style="margin:0"><input id="newloc" placeholder="New location, e.g. Warehouse" maxlength="40"><button type="button" class="btn ghost" data-act="addloc">Add</button></div></div>
   <h2>System stock</h2><div class="card stack"><p class="note" style="margin:0">${S.stock&&S.stock.q?`Loaded <b>${esc(S.stock.name||'file')}</b>: ${fmt(Object.keys(S.stock.q).length)} items matched.`:'Not loaded.'} Choose an Excel or CSV export from your system that has a code column (CID, BC or SKU) and a quantity column.</p>
    <div class="pair"><button type="button" class="btn ghost" data-act="stock">Import stock file</button>${S.stock&&S.stock.q?`<button type="button" class="btn danger" data-act="delstock">Remove stock</button>`:'<span></span>'}</div></div>
+  ${masterHtml}
   <h2>New count</h2><div class="card stack"><p class="note" style="margin:0">Erases every counted quantity in all locations so you can start the next stock take. Export first.</p><button type="button" class="btn danger" data-act="reset">Erase all counts</button></div>
-  <h2>Item list</h2><p class="note">${fmt(S.items.length)} items in ${S.cats.length} categories from “${esc(S.source)}”. ${fmt(noPic)} items had no picture in the workbook.</p>`;
+  <h2>Item list</h2><p class="note">${fmt(S.items.length)} items in ${S.cats.length} categories from “${esc(S.source)}”. ${fmt(noPic)} items have no picture.</p>`;
 }
 function armed(b,label){ if(b.dataset.armed){return true} b.dataset.armed='1'; b.dataset.old=b.textContent; b.textContent=label; setTimeout(()=>{if(b.isConnected){delete b.dataset.armed;b.textContent=b.dataset.old}},4000); return false }
 const actions={
@@ -441,6 +448,8 @@ const actions={
   },
   async reset(b){ if(!armed(b,'Tap again to erase everything')) return; await wipe(()=>true); toast('All counts erased'); renderMore() },
   stock(){ $('#stockfile').click() },
+  master(){ $('#masterfile').click() },
+  async delmaster(b){ if(!armed(b,'Tap again to restore')) return; S.ov=null; ls.set('inv.master',null); await clearPics(); buildItems(); toast('Built-in item list restored'); render() },
   async delstock(b){ if(!armed(b,'Tap again to remove')) return; if(LOCAL) ls.set('inv.stock',null); else try{await S.db.doc('meta/stock').delete()}catch(e){} S.stock=null; renderMore() },
   export(b){ doExport(b) },
   hint(){ S.hintOff=true; render() }
@@ -506,7 +515,7 @@ $('#stockfile').addEventListener('change',async e=>{
       for(const r of A){const i=S.codes.get(String(r[cc]??'').trim().toUpperCase());if(i==null)continue;const n=Number(r[qc]);if(!isFinite(n)||r[qc]===''||r[qc]==null)continue;const cid=S.items[i].cid;q[cid]=(q[cid]||0)+n;hit++}
       if(!best||hit>best.hit) best={hit,q,col:String(hdr[qc]??'column '+(qc+1))};
     }
-    if(!best||!best.hit) return toast('No item codes from the count list were found in that file.');
+    if(!best||!best.hit) return toast(LOCAL?'No stock quantities found for the items in the app. To load a new item list, use Import master file.':'No item codes from the count list were found in that file.');
     const doc={q:best.q,name:f.name,col:best.col,at:new Date().toISOString()};
     if(LOCAL) ls.set('inv.stock',doc);
     else if(S.db){ try{await S.db.doc('meta/stock').set(doc)}catch(er){return toast('Could not save the stock file to the shared count.')} }
@@ -549,6 +558,7 @@ async function liveScan(){
 function stopScan(){const sc=S.scan;S.scan=null;if(sc){clearTimeout(sc.timer);if(sc.stream)sc.stream.getTracks().forEach(t=>t.stop())}const x=$('#scanner');if(x)x.remove()}
 window.appBack=function(){
   if($('#scanner')){stopScan();return true}
+  if(S.master||S.file){S.master=null;S.file=null;$('#sheetroot').innerHTML='';return true}
   if(S.sheet){saveSheet();closeSheet();return true}
   if(S.tab!=='count'){setTab('count');return true}
   if(S.q||S.cat!=null||S.prio){S.cat=null;S.prio=null;S.q='';$('#search').value='';render();return true}
@@ -585,15 +595,163 @@ if(window.STANDALONE){
   try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
   if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
 }
+/* ---------- item master: built-in list plus the imported file ---------- */
+function buildItems(){
+  const d=S.base, ov=S.ov;
+  S.cats=d.cats.concat(ov&&ov.cats||[]);
+  let items=d.items.map(a=>({s:a[0],r:a[1],cid:a[2],bc:a[3],sku:a[4],d:a[5],u:a[6],st:a[7],z:a[8],t:a[9],pr:a[10]||'',po:a[11]||0,ty:a[12]||'',alt:a[13]||''}));
+  if(ov){
+    const by=new Map(items.map(it=>[it.s+'|'+it.r,it]));
+    for(const k in ov.rows){
+      const e=ov.rows[k]; let it=by.get(k);
+      if(!it){const p=k.split('|');it={s:+p[0],r:+p[1],cid:'',bc:'',sku:'',d:'',u:'',st:'',z:'',t:-1,pr:'',po:0,ty:'',alt:''};items.push(it);by.set(k,it)}
+      for(const f of ['cid','bc','sku','d','u','st','z','pr']){ if(e[f]!=null&&e[f]!==''){ if(f==='d'&&it.d&&it.d!==e.d) it.alt+=' '+it.d; it[f]=e[f] } }
+      if(e.po) it.po=e.po;
+      if(e.pic) it.pic=k;
+    }
+    if(ov.only){const keep=new Set(ov.only);items=items.filter(it=>keep.has(it.s+'|'+it.r))}
+  }
+  S.codes=new Map();
+  items.forEach((it,i)=>{it.i=i;it.h=(it.d+' '+it.alt+' '+it.cid+' '+it.bc+' '+it.sku).toLowerCase()});
+  items.forEach(it=>{for(const c of [it.sku,it.bc]){if(c)S.codes.set(String(c).toUpperCase(),it.i)}});
+  items.forEach(it=>{if(it.cid)S.codes.set(String(it.cid).toUpperCase(),it.i)});
+  S.items=items; S.list=[]; S.sheet=null;
+}
+function idb(){return new Promise((ok,no)=>{const r=indexedDB.open('stockcount',1);r.onupgradeneeded=()=>r.result.createObjectStore('pics');r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)})}
+async function loadPics(){
+  try{const db=await idb();await new Promise((ok,no)=>{const c=db.transaction('pics').objectStore('pics').openCursor();
+    c.onsuccess=()=>{const cur=c.result;if(cur){setPic(cur.key,cur.value);cur.continue()}else ok()};c.onerror=()=>no(c.error)})}catch(e){}
+}
+function setPic(k,v){const old=pics.get(k);if(old)URL.revokeObjectURL(old);pics.set(k,URL.createObjectURL(new Blob([v.b],{type:v.t})))}
+async function savePics(m){if(!m.size)return;const db=await idb();await new Promise((ok,no)=>{const tx=db.transaction('pics','readwrite'),st=tx.objectStore('pics');m.forEach((v,k)=>st.put(v,k));tx.oncomplete=ok;tx.onerror=()=>no(tx.error)})}
+async function clearPics(){try{const db=await idb();await new Promise(ok=>{const tx=db.transaction('pics','readwrite');tx.objectStore('pics').clear();tx.oncomplete=ok;tx.onerror=ok})}catch(e){}pics.forEach(u=>URL.revokeObjectURL(u));pics.clear()}
+
+const nrm=v=>String(v??'').toLowerCase().replace(/[^a-z0-9]/g,'');
+const HDR={img:h=>/^(image|picture|photo)/.test(h),cid:h=>/^cid/.test(h),bc:h=>/^(bc|barcode|rmt|itemno|itemcode)/.test(h),sku:h=>/^(sku|vendor)/.test(h),
+  d:h=>h.includes('description')||h==='name'||h==='itemname',u:h=>/^(uom|unit)/.test(h),st:h=>/^status/.test(h),cat:h=>/^category/.test(h),pr:h=>/^priority/.test(h),z:h=>/^zone/.test(h)};
+function zipText(wb,p){const f=wb.files[p];if(!f)return '';const c=f.content;return typeof c==='string'?c:new TextDecoder().decode(c instanceof Uint8Array?c:new Uint8Array(c))}
+function zipRels(wb,path){
+  const i=path.lastIndexOf('/'),dir=path.slice(0,i),out={},x=zipText(wb,dir+'/_rels/'+path.slice(i+1)+'.rels');
+  for(const m of x.matchAll(/<Relationship\s[^>]*>/g)){
+    const id=(m[0].match(/Id="([^"]+)"/)||[])[1],t=(m[0].match(/Target="([^"]+)"/)||[])[1]; if(!id||!t)continue;
+    const parts=(t[0]==='/'?t.slice(1):dir+'/'+t).split('/'),st=[]; for(const q of parts){if(q==='..')st.pop();else if(q!=='.')st.push(q)} out[id]=st.join('/');
+  }
+  return out;
+}
+function sheetPictures(wb,path,imgCol){
+  const out=new Map(); // excel row number -> media path
+  const rel=zipRels(wb,path);
+  for(const id in rel){
+    if(!/drawings\/drawing/.test(rel[id]))continue;
+    const dr=zipRels(wb,rel[id]),doc=new DOMParser().parseFromString(zipText(wb,rel[id]),'application/xml');
+    const kid=(el,n)=>el&&[...el.children].find(c=>c.localName===n), num=(el,n)=>{const k=kid(el,n);return k?+k.textContent:0};
+    for(const a of doc.documentElement?[...doc.documentElement.children]:[]){
+      const fr=kid(a,'from'),bl=[...a.getElementsByTagName('*')].find(c=>c.localName==='blip'); if(!fr||!bl)continue;
+      const rid=bl.getAttribute('r:embed')||[...bl.attributes].filter(t=>t.localName==='embed').map(t=>t.value)[0]; if(!rid||!dr[rid])continue;
+      let row=num(fr,'row'); const to=kid(a,'to'); if(to&&num(to,'row')-row>=2)row=Math.floor((row+num(to,'row'))/2);
+      if(Math.abs(num(fr,'col')-imgCol)<=1&&!out.has(row+1))out.set(row+1,dr[rid]);
+    }
+  }
+  const sx=zipText(wb,path);
+  if(sx.includes(' vm="')&&wb.files['xl/richData/richValueRel.xml']){
+    const rr=zipRels(wb,'xl/richData/richValueRel.xml'),order=[...zipText(wb,'xl/richData/richValueRel.xml').matchAll(/<rel r:id="([^"]+)"/g)].map(m=>rr[m[1]]);
+    const rvs=[...zipText(wb,'xl/richData/rdrichvalue.xml').matchAll(/<rv [^>]*>([\s\S]*?)<\/rv>/g)].map(m=>(m[1].match(/<v>([^<]*)<\/v>/)||[])[1]);
+    const meta=zipText(wb,'xl/metadata.xml'),fmi=[...meta.matchAll(/<xlrd:rvb i="(\d+)"/g)].map(m=>+m[1]);
+    const vmb=(meta.match(/<valueMetadata[^>]*>([\s\S]*?)<\/valueMetadata>/)||[])[1]||'',vmi=[...vmb.matchAll(/<rc t="\d+" v="(\d+)"/g)].map(m=>+m[1]);
+    const colL=window.XLSX.utils.encode_col(imgCol);
+    for(const m of sx.matchAll(new RegExp('<c r="'+colL+'(\\d+)"[^>]*\\bvm="(\\d+)"','g'))){
+      const p=order[+rvs[fmi[vmi[+m[2]-1]]]]; if(p&&!out.has(+m[1]))out.set(+m[1],p);
+    }
+  }
+  return out;
+}
+async function parseMaster(file){
+  await lib(XLSX_URL); const X=window.XLSX, wb=X.read(await file.arrayBuffer(),{type:'array',bookFiles:true});
+  const wrel=zipRels(wb,'xl/workbook.xml'), meta=(wb.Workbook&&wb.Workbook.Sheets)||[], found=[];
+  wb.SheetNames.forEach((name,si)=>{
+    const ws=wb.Sheets[name]; if(!ws||!ws['!ref']||(meta[si]&&meta[si].Hidden))return;
+    const rng=X.utils.decode_range(ws['!ref']),A=X.utils.sheet_to_json(ws,{header:1,blankrows:true,defval:null});
+    for(let hr=0;hr<Math.min(15,A.length);hr++){
+      const col={}; (A[hr]||[]).forEach((v,c)=>{const h=nrm(v);if(!h)return;for(const k in HDR){if(col[k]==null&&HDR[k](h)){col[k]=c;break}}});
+      if(col.d!=null&&(col.cid!=null||col.bc!=null||col.sku!=null)){found.push({name,A,hr,col,r0:rng.s.r,c0:rng.s.c,path:meta[si]&&wrel[meta[si].id]});break}
+    }
+  });
+  let sheets=found; if(found.length>1&&!found.some(f=>f.col.cat!=null)) sheets=found.filter(f=>!/master/i.test(f.name));
+  if(!sheets.length) return null;
+  const multi=sheets.length>1, rows=[], seen=new Map(); let skipped=0, order=0;
+  for(const f of sheets){
+    const picMap=f.path&&f.col.img!=null?sheetPictures(wb,f.path,f.col.img+f.c0):new Map();
+    for(let i=f.hr+1;i<f.A.length;i++){
+      const r=f.A[i]||[], g=k=>f.col[k]==null||r[f.col[k]]==null?'':String(r[f.col[k]]).trim();
+      const e={cid:g('cid'),bc:g('bc'),sku:g('sku'),d:g('d'),u:g('u'),st:g('st'),z:g('z'),pr:g('pr')};
+      if(!e.cid&&!e.bc&&!e.sku&&!e.d) continue;
+      if(!e.cid&&!e.bc&&!e.sku){skipped++;continue}
+      const codes=[e.cid,e.bc,e.sku].filter(Boolean).map(c=>c.toUpperCase());
+      let key=null,isNew=false; for(const c of codes){if(seen.has(c)){key=seen.get(c);break}}
+      if(!key){for(const c of codes){const ix=S.codes.get(c);if(ix!=null){const it=S.items[ix];key=it.s+'|'+it.r;break}}}
+      const row={e,cat:g('cat')||(multi?f.name:''),pic:picMap.get(i+f.r0+1)||null,key,order:++order};
+      if(!key){row.isNew=true;key=row.key='n'+order} codes.forEach(c=>seen.set(c,key)); rows.push(row);
+    }
+  }
+  return {wb,rows,skipped,name:file.name};
+}
+async function tileFromBytes(bytes){
+  try{
+    const bmp=await createImageBitmap(new Blob([bytes])),T=S.tile,cv=document.createElement('canvas');cv.width=cv.height=T;
+    const cx=cv.getContext('2d');cx.fillStyle='#fff';cx.fillRect(0,0,T,T);const k=Math.min(T/bmp.width,T/bmp.height),w=bmp.width*k,h=bmp.height*k;cx.drawImage(bmp,(T-w)/2,(T-h)/2,w,h);
+    const blob=await new Promise(ok=>cv.toBlob(ok,'image/jpeg',.85)); return {b:await blob.arrayBuffer(),t:'image/jpeg'};
+  }catch(e){return null}
+}
+async function applyMaster(P,replace){
+  const ov=S.ov?JSON.parse(JSON.stringify(S.ov)):{v:1,cats:[],rows:{},seq:0}, cats=S.base.cats.concat(ov.cats), keys=[], newPics=new Map(), tmp=new Map();
+  let n=0;
+  for(const row of P.rows){
+    let key=row.key;
+    if(tmp.has(key)) key=tmp.get(key);
+    else if(row.isNew){
+      const cn=row.cat||'New items'; let s=cats.findIndex(c=>c.toLowerCase()===cn.toLowerCase()); if(s<0){s=cats.length;cats.push(cn);ov.cats.push(cn)}
+      key=s+'|'+(100000+(++ov.seq)); tmp.set(row.key,key); if(!row.e.cid) row.e.cid=row.e.bc||row.e.sku;
+    }
+    const e=ov.rows[key]||(ov.rows[key]={}); for(const f in row.e){if(row.e[f]!=='')e[f]=row.e[f]} if(row.e.pr)e.po=row.order;
+    if(row.pic&&P.wb.files[row.pic]){const t=await tileFromBytes(P.wb.files[row.pic].content);if(t){newPics.set(key,t);e.pic=1}}
+    keys.push(key); if(++n%40===0){toast('Importing… '+n+' of '+P.rows.length);await new Promise(r=>setTimeout(r,0))}
+  }
+  if(replace) ov.only=[...new Set(keys)]; else if(ov.only) ov.only=[...new Set(ov.only.concat(keys))];
+  ov.name=P.name; ov.at=new Date().toISOString();
+  try{await savePics(newPics)}catch(e){toast('Pictures could not be saved on this device; the items were still imported.')}
+  newPics.forEach((v,k)=>setPic(k,v));
+  S.ov=ov; ls.set('inv.master',ov); buildItems(); S.cat=null; S.prio=null; S.q=''; $('#search').value='';
+  return {n:keys.length,pics:newPics.size};
+}
+$('#masterfile').addEventListener('change',async e=>{
+  const f=e.target.files[0]; e.target.value=''; if(!f) return;
+  toast('Reading '+f.name+'…');
+  let P=null; try{P=await parseMaster(f)}catch(er){return toast('That file could not be read. Use an Excel .xlsx file.')}
+  if(!P||!P.rows.length) return toast('No items found. The file needs a Description column and a code column (CID Code or BC Code).');
+  S.master=P; const nu=P.rows.filter(r=>r.isNew).length, np=P.rows.filter(r=>r.pic).length;
+  $('#sheetroot').innerHTML=`<div class="scrim" id="mscrim"><div class="sheet"><div class="hd"><b>Import item master</b><button type="button" class="btn ghost" id="mcancel" style="height:36px">Cancel</button></div>
+   <p class="note" style="margin:0 0 8px">${esc(P.name)}</p>
+   <table class="num"><tbody><tr><td>Items in the file</td><td>${fmt(P.rows.length)}</td></tr><tr><td>Already in the app (will be updated)</td><td>${fmt(P.rows.length-nu)}</td></tr><tr><td>New items (will be added)</td><td>${fmt(nu)}</td></tr><tr><td>Pictures found</td><td>${fmt(np)}</td></tr>${P.skipped?`<tr><td>Rows skipped (no code)</td><td>${fmt(P.skipped)}</td></tr>`:''}</tbody></table>
+   <div class="stack" style="margin-top:14px"><button type="button" class="btn" id="mapply">Update and add to the list</button><button type="button" class="btn danger" id="mreplace">Show only these items</button></div>
+   <p class="note" style="margin:10px 0 0">“Show only these items” hides every item that is not in this file. Counts are kept either way, and you can restore the built-in list later.</p></div></div>`;
+});
+$('#sheetroot').addEventListener('click',async e=>{
+  const id=e.target.id; if(!S.master||!/^m(cancel|scrim|apply|replace)$/.test(id)) return;
+  if(id==='mcancel'||id==='mscrim'){S.master=null;$('#sheetroot').innerHTML='';return}
+  if(id==='mreplace'&&!armed(e.target,'Tap again to hide all other items')) return;
+  const P=S.master; S.master=null; $('#sheetroot').innerHTML=''; toast('Importing…');
+  try{const r=await applyMaster(P,id==='mreplace'); toast(`Master imported: ${fmt(r.n)} items, ${fmt(r.pics)} pictures`); render()}
+  catch(er){toast('The import failed. Nothing was changed.')}
+});
 let tt=0; function toast(m){const t=$('#toast');t.textContent=m;t.hidden=false;clearTimeout(tt);tt=setTimeout(hideToast,3800)} function hideToast(){$('#toast').hidden=true}
 
 /* ---------- boot ---------- */
 fillLoc(); syncUI();
-fetch('items.json').then(r=>r.json()).then(d=>{
-  S.cats=d.cats;S.tile=d.tile;S.grid=d.grid;S.source=d.source;
-  S.items=d.items.map((a,i)=>({i,s:a[0],r:a[1],cid:a[2],bc:a[3],sku:a[4],d:a[5],u:a[6],st:a[7],z:a[8],t:a[9],pr:a[10]||'',po:a[11]||0,ty:a[12]||'',h:(a[5]+' '+(a[13]||'')+' '+a[2]+' '+a[3]+' '+a[4]).toLowerCase()}));
-  S.items.forEach(it=>{for(const c of [it.sku,it.bc,it.cid]){if(c){S.codes.set(c.toUpperCase(),it.i)}}});
-  S.items.forEach(it=>{if(it.cid)S.codes.set(it.cid.toUpperCase(),it.i)});
+fetch('items.json').then(r=>r.json()).then(async d=>{
+  S.base=d;S.tile=d.tile;S.grid=d.grid;S.source=d.source;
+  S.ov=LOCAL?ls.get('inv.master',null):null;
+  if(S.ov) await loadPics();
+  buildItems();
   render(); initDb();
 }).catch(()=>{main.innerHTML='<p class="empty">The item list could not be loaded. Check your connection and reload.</p>'});
 window.addEventListener('online',flushAll);
