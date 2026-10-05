@@ -177,7 +177,7 @@ const ls=NATIVE?{get(k,d){try{const v=window.Android.get(k);return v==null||v===
   :{get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
 
 const S={items:[],cats:[],tile:192,grid:6,codes:new Map(),
-  tab:'count',cat:null,q:'',filter:'all',list:[],shown:0,
+  tab:'count',cat:null,prio:null,q:'',filter:'all',list:[],shown:0,
   locs:[{id:'L1',name:'Main store'}],loc:ls.get('inv.loc','L1'),
   remote:new Map(),pending:ls.get('inv.pending',{}),docs:new Set(),
   stock:null,db:null,ready:false,local:false,readonly:false,inflight:{},sheet:null};
@@ -266,7 +266,7 @@ function render(){
   if(!S.items.length) return;
   if(S.tab==='summary') return renderSummary();
   if(S.tab==='more') return renderMore();
-  if(S.q||S.cat!=null) return renderList();
+  if(S.q||S.cat!=null||S.prio) return renderList();
   renderCats();
 }
 function catStats(loc){
@@ -283,13 +283,16 @@ function banner(){
 }
 function renderCats(){
   const st=catStats(S.loc); let n=0,c=0; st.forEach(x=>{n+=x.n;c+=x.c});
-  main.innerHTML=banner()+`<h2>Categories · <span class="num">${fmt(c)} of ${fmt(n)}</span> items counted</h2><ul class="cats">`+
+  const PR=['Top 30','30 to 50','51 to 100','Above 100'], ps=PR.map(()=>({n:0,c:0}));
+  for(const it of S.items){const k=PR.indexOf(it.pr);if(k<0)continue;ps[k].n++;if(getQ(S.loc,it)!=null)ps[k].c++}
+  const prHtml=ps.some(x=>x.n)?`<h2>Priority flowers &amp; fillers</h2><ul class="cats">`+PR.map((name,k)=>ps[k].n?`<li><button type="button" class="cat${ps[k].c===ps[k].n?' done':''}" data-prio="${name}"><b>${name}</b><span class="n num">${ps[k].c} / ${ps[k].n}</span><span class="prog"><span style="width:${ps[k].c/ps[k].n*100}%"></span></span></button></li>`:'').join('')+`</ul>`:'';
+  main.innerHTML=banner()+prHtml+`<h2>Categories · <span class="num">${fmt(c)} of ${fmt(n)}</span> items counted</h2><ul class="cats">`+
     S.cats.map((name,i)=>{const x=st[i];return `<li><button type="button" class="cat${x.c===x.n?' done':''}" data-cat="${i}"><b>${esc(name)}</b><span class="n num">${x.c} / ${x.n}</span><span class="prog"><span style="width:${x.n?x.c/x.n*100:0}%"></span></span></button></li>`}).join('')+`</ul>`;
 }
 function buildList(){
   const toks=S.q.toLowerCase().split(/\s+/).filter(Boolean);
   S.list=S.items.filter(it=>{
-    if(!toks.length&&it.s!==S.cat) return false;
+    if(!toks.length&&(S.prio?it.pr!==S.prio:it.s!==S.cat)) return false;
     if(toks.length&&!toks.every(t=>it.h.includes(t))) return false;
     if(S.filter==='all') return true; const v=getQ(S.loc,it);
     return S.filter==='todo'?v==null:v!=null;
@@ -297,7 +300,8 @@ function buildList(){
 }
 function renderList(){
   buildList(); S.shown=0;
-  const title=S.q?`Results for “${esc(S.q)}”`:esc(S.cats[S.cat]);
+  if(!S.q&&S.prio) S.list.sort((a,b)=>a.po-b.po);
+  const title=S.q?`Results for “${esc(S.q)}”`:S.prio?'Priority: '+esc(S.prio):esc(S.cats[S.cat]);
   main.innerHTML=banner()+`<div class="listhead"><button type="button" class="back" id="back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>All</button><div class="ttl">${title}</div><span class="note num" id="lcount"></span></div>
   <div class="chips">${[['all','All'],['todo','To count'],['done','Counted']].map(([k,l])=>`<button type="button" class="chip" data-filter="${k}" aria-pressed="${S.filter===k}">${l}</button>`).join('')}</div>
   <ul class="rows" id="rows"></ul><div id="more"></div>`;
@@ -315,7 +319,7 @@ function rowHtml(it){
   const v=getQ(S.loc,it);
   const th=it.t>=0?`<button type="button" class="thumb" data-open="${it.i}" aria-label="Open photo" style="${thumbStyle(it.t,64)}"></button>`:`<button type="button" class="thumb none" data-open="${it.i}">No photo</button>`;
   return `<li class="row${v!=null?' counted':''}" data-i="${it.i}">${th}
-   <button type="button" class="txt" data-open="${it.i}"><div class="d">${esc(it.d)}</div><div class="c mono">${esc(it.cid)}${it.sku?' · '+esc(it.sku):''}</div><div class="m">${esc([it.u,it.st,S.q?S.cats[it.s]:''].filter(Boolean).join(' · '))}</div></button>
+   <button type="button" class="txt" data-open="${it.i}"><div class="d">${esc(it.d)}</div><div class="c mono">${esc(it.cid)}${it.sku?' · '+esc(it.sku):''}</div><div class="m">${esc([it.u,it.st,S.q?S.cats[it.s]:'',it.pr&&!S.prio?'Priority '+it.pr:'',S.prio?it.ty:''].filter(Boolean).join(' · '))}</div></button>
    <div class="q"><input id="q${it.i}" data-q="${it.i}" inputmode="decimal" enterkeyhint="next" autocomplete="off" aria-label="Counted quantity" placeholder="–" value="${v==null?'':v}">${subLine(it)}</div></li>`;
 }
 function moreRows(){
@@ -325,7 +329,7 @@ function moreRows(){
 const io=new IntersectionObserver(es=>{if(es.some(e=>e.isIntersecting))moreRows()},{rootMargin:'600px'});
 function refreshValues(){
   if(S.tab!=='count') return;
-  if(!S.q&&S.cat==null){renderCats();return}
+  if(!S.q&&S.cat==null&&!S.prio){renderCats();return}
   document.querySelectorAll('.row').forEach(li=>{
     const it=S.items[+li.dataset.i], v=getQ(S.loc,it), inp=li.querySelector('input');
     if(document.activeElement!==inp) inp.value=v==null?'':v;
@@ -340,8 +344,9 @@ function commit(it,raw){
 
 main.addEventListener('click',e=>{
   const t=e.target.closest('button'); if(!t) return;
-  if(t.dataset.cat!=null){S.cat=+t.dataset.cat;S.filter='all';render();window.scrollTo(0,0)}
-  else if(t.id==='back'){S.cat=null;S.q='';$('#search').value='';render()}
+  if(t.dataset.cat!=null){S.cat=+t.dataset.cat;S.prio=null;S.filter='all';render();window.scrollTo(0,0)}
+  else if(t.dataset.prio){S.prio=t.dataset.prio;S.cat=null;S.filter='all';render();window.scrollTo(0,0)}
+  else if(t.id==='back'){S.cat=null;S.prio=null;S.q='';$('#search').value='';render()}
   else if(t.dataset.filter){S.filter=t.dataset.filter;render()}
   else if(t.dataset.open!=null){openSheet(S.items[+t.dataset.open])}
   else if(t.dataset.act) actions[t.dataset.act](t);
@@ -362,7 +367,7 @@ function closeSheet(){S.sheet=null;$('#sheetroot').innerHTML='';refreshValues()}
 function drawSheet(){
   const it=S.sheet, v=getQ(S.loc,it), sys=sysQ(it), tot=totalQ(it), pos=S.list.indexOf(it);
   const locName=(S.locs.find(l=>l.id===S.loc)||{}).name||'';
-  const rows=[['CID code',it.cid],['BC code',it.bc],['SKU code',it.sku],['Category',S.cats[it.s]],['UOM',it.u],['Status',it.st],['Zone',it.z]].filter(r=>r[1]);
+  const rows=[['CID code',it.cid],['BC code',it.bc],['SKU code',it.sku],['Category',S.cats[it.s]],['Type',it.ty],['Priority',it.pr],['UOM',it.u],['Status',it.st],['Zone',it.z]].filter(r=>r[1]);
   let extra='';
   if(S.locs.length>1||sys!=null){
     extra=`<table class="num"><tbody>`+(S.locs.length>1?S.locs.map(l=>`<tr><td>${esc(l.name)}</td><td>${fmt(getQ(l.id,it))||'–'}</td></tr>`).join('')+`<tr><td><b>All locations</b></td><td><b>${fmt(tot)||'–'}</b></td></tr>`:'')+
@@ -455,17 +460,17 @@ async function doExport(b){
   b.disabled=true; const old=b.textContent; b.textContent='Preparing…';
   try{
     await lib(XLSX_URL); const X=window.XLSX, L=S.locs;
-    const head=['Category','CID Code','BC Code','SKU Code','Description','UOM','Status',...L.map(l=>l.name),'Total QTY','System stock','Variance'];
+    const head=['Category','CID Code','BC Code','SKU Code','Description','UOM','Status','Priority',...L.map(l=>l.name),'Total QTY','System stock','Variance'];
     const rows=[head], byCid=new Map();
     for(const it of S.items){
       const per=L.map(l=>getQ(l.id,it)), tot=totalQ(it), sys=sysQ(it);
-      rows.push([S.cats[it.s],it.cid,it.bc,it.sku,it.d,it.u,it.st,...per.map(v=>v==null?'':v),tot==null?'':tot,sys==null?'':sys,(tot!=null&&sys!=null)?tot-sys:'']);
+      rows.push([S.cats[it.s],it.cid,it.bc,it.sku,it.d,it.u,it.st,it.pr,...per.map(v=>v==null?'':v),tot==null?'':tot,sys==null?'':sys,(tot!=null&&sys!=null)?tot-sys:'']);
       let m=byCid.get(it.cid); if(!m){m={it,c:S.cats.map(()=>0)};byCid.set(it.cid,m)} m.c[it.s]+=tot||0;
     }
     const master=[['CID Code','RMT Code','Vendor Code','Description',...S.cats,'TOTAL']];
     byCid.forEach(m=>master.push([m.it.cid,m.it.bc,m.it.sku,m.it.d,...m.c,m.c.reduce((a,x)=>a+x,0)]));
     const wb=X.utils.book_new(), ws=X.utils.aoa_to_sheet(rows), wm=X.utils.aoa_to_sheet(master);
-    ws['!cols']=[{wch:22},{wch:14},{wch:22},{wch:12},{wch:44},{wch:7},{wch:10},...L.map(()=>({wch:12})),{wch:10},{wch:12},{wch:10}];
+    ws['!cols']=[{wch:22},{wch:14},{wch:22},{wch:12},{wch:44},{wch:7},{wch:10},{wch:10},...L.map(()=>({wch:12})),{wch:10},{wch:12},{wch:10}];
     wm['!cols']=[{wch:14},{wch:22},{wch:12},{wch:44}];
     X.utils.book_append_sheet(wb,ws,'Count sheet'); X.utils.book_append_sheet(wb,wm,'Master data');
     const name='Stock count '+new Date().toISOString().slice(0,10)+'.xlsx';
@@ -546,7 +551,7 @@ window.appBack=function(){
   if($('#scanner')){stopScan();return true}
   if(S.sheet){saveSheet();closeSheet();return true}
   if(S.tab!=='count'){setTab('count');return true}
-  if(S.q||S.cat!=null){S.cat=null;S.q='';$('#search').value='';render();return true}
+  if(S.q||S.cat!=null||S.prio){S.cat=null;S.prio=null;S.q='';$('#search').value='';render();return true}
   return false;
 };
 $('#scanfile').addEventListener('change',async e=>{
@@ -586,7 +591,7 @@ let tt=0; function toast(m){const t=$('#toast');t.textContent=m;t.hidden=false;c
 fillLoc(); syncUI();
 fetch('items.json').then(r=>r.json()).then(d=>{
   S.cats=d.cats;S.tile=d.tile;S.grid=d.grid;S.source=d.source;
-  S.items=d.items.map((a,i)=>({i,s:a[0],r:a[1],cid:a[2],bc:a[3],sku:a[4],d:a[5],u:a[6],st:a[7],z:a[8],t:a[9],h:(a[5]+' '+a[2]+' '+a[3]+' '+a[4]).toLowerCase()}));
+  S.items=d.items.map((a,i)=>({i,s:a[0],r:a[1],cid:a[2],bc:a[3],sku:a[4],d:a[5],u:a[6],st:a[7],z:a[8],t:a[9],pr:a[10]||'',po:a[11]||0,ty:a[12]||'',h:(a[5]+' '+(a[13]||'')+' '+a[2]+' '+a[3]+' '+a[4]).toLowerCase()}));
   S.items.forEach(it=>{for(const c of [it.sku,it.bc,it.cid]){if(c){S.codes.set(c.toUpperCase(),it.i)}}});
   S.items.forEach(it=>{if(it.cid)S.codes.set(it.cid.toUpperCase(),it.i)});
   render(); initDb();
