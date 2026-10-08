@@ -719,7 +719,7 @@ async function applyMaster(P,replace){
     keys.push(key); if(++n%40===0){toast('Importing… '+n+' of '+P.rows.length);await new Promise(r=>setTimeout(r,0))}
   }
   if(replace) ov.only=[...new Set(keys)]; else if(ov.only) ov.only=[...new Set(ov.only.concat(keys))];
-  ov.name=P.name; ov.at=new Date().toISOString();
+  ov.name=P.name; ov.at=new Date().toISOString(); ov.base=S.base.listId;
   try{await savePics(newPics)}catch(e){toast('Pictures could not be saved on this device; the items were still imported.')}
   newPics.forEach((v,k)=>setPic(k,v));
   S.ov=ov; ls.set('inv.master',ov); buildItems(); S.cat=null; S.prio=null; S.q=''; $('#search').value='';
@@ -757,6 +757,7 @@ fillLoc(); syncUI();
 fetch('items.json').then(r=>r.json()).then(async d=>{
   S.base=d;S.tile=d.tile;S.grid=d.grid;S.source=d.source;
   S.ov=LOCAL?ls.get('inv.master',null):null;
+  if(S.ov&&S.ov.base!==d.listId){S.ov=null;ls.set('inv.master',null);await clearPics()}
   if(S.ov) await loadPics();
   buildItems();
   render(); initDb();
