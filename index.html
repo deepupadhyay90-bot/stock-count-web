@@ -262,7 +262,7 @@ document.querySelectorAll('nav.tabs button').forEach(b=>b.addEventListener('clic
 function setTab(t){S.tab=t;document.querySelectorAll('nav.tabs button').forEach(b=>b.dataset.tab===t?b.setAttribute('aria-current','page'):b.removeAttribute('aria-current'));$('#searchbar').hidden=t!=='count';render();window.scrollTo(0,0)}
 
 /* ---------- render ---------- */
-function thumbStyle(t,size){const g=S.grid;return `background-image:url(img/a${Math.floor(t/(g*g))}.webp);background-size:${g*size}px ${g*size}px;background-position:-${(t%(g*g))%g*size}px -${Math.floor((t%(g*g))/g)*size}px`}
+function thumbStyle(t,size){const g=S.grid;return `background-image:url(img/${S.atlas?S.atlas[Math.floor(t/(g*g))]:'a'+Math.floor(t/(g*g))+'.webp'});background-size:${g*size}px ${g*size}px;background-position:-${(t%(g*g))%g*size}px -${Math.floor((t%(g*g))/g)*size}px`}
 const pics=new Map();
 function hasPic(it){return (it.pic&&pics.has(it.pic))||it.t>=0}
 function picStyle(it,size){return it.pic&&pics.has(it.pic)?`background-image:url(${pics.get(it.pic)});background-size:contain;background-position:center`:thumbStyle(it.t,size)}
@@ -755,7 +755,7 @@ let tt=0; function toast(m){const t=$('#toast');t.textContent=m;t.hidden=false;c
 /* ---------- boot ---------- */
 fillLoc(); syncUI();
 fetch('items.json').then(r=>r.json()).then(async d=>{
-  S.base=d;S.tile=d.tile;S.grid=d.grid;S.source=d.source;
+  S.base=d;S.atlas=d.atlas||null;S.tile=d.tile;S.grid=d.grid;S.source=d.source;
   S.ov=LOCAL?ls.get('inv.master',null):null;
   if(S.ov&&S.ov.base!==d.listId){S.ov=null;ls.set('inv.master',null);await clearPics()}
   if(S.ov) await loadPics();
