@@ -601,10 +601,14 @@ function buildItems(){
   S.cats=d.cats.concat(ov&&ov.cats||[]);
   let items=d.items.map(a=>({s:a[0],r:a[1],cid:a[2],bc:a[3],sku:a[4],d:a[5],u:a[6],st:a[7],z:a[8],t:a[9],pr:a[10]||'',po:a[11]||0,ty:a[12]||'',alt:a[13]||''}));
   if(ov){
-    const by=new Map(items.map(it=>[it.s+'|'+it.r,it]));
+    const by=new Map(items.map(it=>[it.s+'|'+it.r,it])), up=v=>String(v||'').trim().toUpperCase(), have=new Set();
+    items.forEach(it=>{if(it.bc)have.add(up(it.bc));if(it.cid)have.add(up(it.cid))});
     for(const k in ov.rows){
       const e=ov.rows[k]; let it=by.get(k);
-      if(!it){const p=k.split('|');it={s:+p[0],r:+p[1],cid:'',bc:'',sku:'',d:'',u:'',st:'',z:'',t:-1,pr:'',po:0,ty:'',alt:''};items.push(it);by.set(k,it)}
+      if(!it){
+        // an item added by an earlier import that is now in the built-in list (same RMT or CID code): skip it, so it is not shown twice
+        const cs=[e.bc,e.cid].filter(Boolean).map(up); if(cs.some(c=>have.has(c)))continue; cs.forEach(c=>have.add(c));
+        const p=k.split('|');it={s:+p[0],r:+p[1],cid:'',bc:'',sku:'',d:'',u:'',st:'',z:'',t:-1,pr:'',po:0,ty:'',alt:''};items.push(it);by.set(k,it)}
       for(const f of ['cid','bc','sku','d','u','st','z','pr']){ if(e[f]!=null&&e[f]!==''){ if(f==='d'&&it.d&&it.d!==e.d) it.alt+=' '+it.d; it[f]=e[f] } }
       if(e.po) it.po=e.po;
       if(e.pic) it.pic=k;
