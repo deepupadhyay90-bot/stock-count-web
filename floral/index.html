@@ -47,7 +47,7 @@ main{max-width:1240px;margin:auto;padding:14px max(4vw,14px) 60px}
 .btn.pri{background:var(--brand2);border-color:var(--brand2);color:#fff}.btn.acc{background:var(--acc);border-color:var(--acc);color:#fff}
 .btn:disabled{opacity:.45;cursor:not-allowed}
 .filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-.filters select{border:1px solid var(--line);background:var(--card);border-radius:10px;padding:8px;min-height:44px;font-size:16px}
+.filters select{max-width:100%;border:1px solid var(--line);background:var(--card);border-radius:10px;padding:8px;min-height:44px;font-size:16px}
 .chips{display:flex;gap:6px;flex-wrap:wrap}
 .chip{border:1px solid var(--line);background:var(--card);border-radius:99px;padding:8px 14px;min-height:40px;font-size:14px;font-weight:500}
 .chip[aria-pressed=true]{background:var(--brand2);color:#fff;border-color:var(--brand2)}
@@ -157,6 +157,7 @@ table{font-size:13px}.stack thead{display:none}.stack tr{display:grid;padding-bl
       <div class="filters">
         <div class="chips" id="stat"></div>
         <select id="dept"><option value="">All departments</option></select>
+        <select id="sub" aria-label="Sub group"><option value="">All sub groups</option></select>
         <select id="sort"><option value="dept">Sort: department</option><option value="qty">Sort: system qty</option><option value="name">Sort: name A–Z</option><option value="recent">Sort: recently counted</option></select>
       </div>
       <div class="meta" id="meta">Loading items…</div>
@@ -201,7 +202,7 @@ const safe=s=>String(s).replace(/[^A-Za-z0-9_\-.~:@+]/g,'_').slice(0,150)||'x';
 const keyOf=it=>safe(it.r&&it.r!=='-'?it.r:'CID-'+(it.c||it.d));
 const initials=d=>esc((d||'?').split(/\s+/).slice(0,2).map(w=>w[0]||'').join('').toUpperCase());
 
-const S={items:[],by:new Map(),loc:ls.get('loc','DXB'),sess:ls.get('sess','NOV26'),who:ls.get('who',''),q:'',dept:'',status:'todo',sort:'dept',limit:60,
+const S={items:[],by:new Map(),loc:ls.get('loc','DXB'),sess:ls.get('sess','NOV26'),who:ls.get('who',''),q:'',dept:'',sub:'',status:'todo',sort:'dept',limit:60,
   lines:[],server:[],lastPull:0,agg:new Map(),db:null,mode:'loading',canWrite:true,unsub:null,cur:null,uid:null,downloads:null};
 
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('on'),1800)}
@@ -295,7 +296,7 @@ const STATS=[['todo','To count'],['counted','Counted'],['var','Variance'],['all'
 $('#stat').innerHTML=STATS.map(([v,t])=>`<button class="chip" data-s="${v}" aria-pressed="${v===S.status}">${t}</button>`).join('');
 function filtered(){
   const q=S.q.trim().toLowerCase();let arr=S.items;
-  if(S.dept)arr=arr.filter(i=>i.dp===S.dept);
+  if(S.dept)arr=arr.filter(i=>i.dp===S.dept);if(S.sub)arr=arr.filter(i=>sgOf(i)===S.sub);
   if(q){
     const toks=q.split(/\s+/);
     arr=arr.filter(i=>toks.every(t=>i._s.includes(t)));
@@ -450,7 +451,13 @@ let qT;$('#q').addEventListener('input',e=>{clearTimeout(qT);qT=setTimeout(()=>{
 $('#q').addEventListener('keydown',e=>{if(e.key!=='Enter')return;e.preventDefault();S.q=e.target.value;const q=S.q.trim().toLowerCase();if(!q)return;
   const ex=S.items.filter(i=>i._codes.includes(q));const arr=ex.length?ex:filtered();if(arr.length===1)open(arr[0]._k);else renderList()});
 $('#stat').addEventListener('click',e=>{const b=e.target.closest('[data-s]');if(!b)return;S.status=b.dataset.s;S.limit=60;document.querySelectorAll('#stat .chip').forEach(c=>c.setAttribute('aria-pressed',c===b));renderList()});
-$('#dept').addEventListener('change',e=>{S.dept=e.target.value;S.limit=60;renderList()});
+const sgOf=i=>(i.sg&&i.sg!=='0')?i.sg:'No sub group';
+function fillSub(){const subs=new Set();for(const i of S.items)if(!S.dept||i.dp===S.dept)subs.add(sgOf(i));
+  const list=[...subs].filter(s=>s!=='No sub group').sort();if(subs.has('No sub group'))list.push('No sub group');
+  $('#sub').innerHTML='<option value="">All sub groups</option>'+list.map(k=>`<option value="${esc(k)}">${esc(k)}</option>`).join('');
+  if(S.sub&&!subs.has(S.sub))S.sub='';$('#sub').value=S.sub}
+$('#dept').addEventListener('change',e=>{S.dept=e.target.value;S.sub='';fillSub();S.limit=60;renderList()});
+$('#sub').addEventListener('change',e=>{S.sub=e.target.value;S.limit=60;renderList()});
 $('#sort').addEventListener('change',e=>{S.sort=e.target.value;renderList()});
 $('#morebtn').addEventListener('click',()=>{S.limit+=60;renderList()});
 $('#list').addEventListener('click',e=>{const r=e.target.closest('[data-k]');if(r)open(r.dataset.k);if(e.target.id==='newfromq')newItemForm(S.q.trim())});
@@ -464,7 +471,7 @@ $('#ov').addEventListener('submit',e=>{e.preventDefault();if(e.target.id==='cfor
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('#ov').classList.contains('open'))close()});
 document.addEventListener('error',e=>{if(e.target.tagName==='IMG'){const p=e.target.parentNode;e.target.remove();if(p&&!p.textContent)p.textContent='—'}},true);
 $('#loc').innerHTML=LOCS.map(([v,n])=>`<option value="${v}">${esc(n)} (${v})</option>`).join('');$('#loc').value=S.loc;
-$('#loc').addEventListener('change',e=>{S.loc=e.target.value;ls.set('loc',S.loc);rebuild()});
+$('#loc').addEventListener('change',e=>{S.loc=e.target.value;ls.set('loc',S.loc);fillSub();rebuild()});
 $('#who').value=S.who;$('#who').addEventListener('change',e=>{S.who=e.target.value.trim();ls.set('who',S.who);if(S.cur)renderSheet()});
 $('#sess').value=S.sess;$('#sess').addEventListener('change',e=>{const v=e.target.value.trim().toUpperCase().replace(/\s+/g,'-');if(!v){e.target.value=S.sess;return}S.sess=v;e.target.value=v;ls.set('sess',v);saveSessionName();store.sub()});
 document.querySelector('nav').addEventListener('click',e=>{const b=e.target.closest('[data-t]');if(!b)return;document.querySelectorAll('nav button').forEach(x=>x.setAttribute('aria-selected',x===b));
@@ -480,7 +487,7 @@ $('#xlsx').addEventListener('click',async()=>{const r=exportRows();if(!r.length)
 fetch('items.json').then(r=>r.json()).then(items=>{
   for(const it of items){it._k=it.id||keyOf(it);
     it._codes=[it.r,it.k,it.ms,it.c].filter(Boolean).map(x=>String(x).toLowerCase());it._s=[it.r,it.k,it.ms,it.c,it.d,it.dp,it.g,it.sg].join(' ').toLowerCase();S.by.set(it._k,it)}
-  S.items=items;$('#dept').innerHTML+=[...new Set(items.map(i=>i.dp))].sort().map(d=>`<option>${esc(d)}</option>`).join('');rebuild();
+  S.items=items;$('#dept').innerHTML+=[...new Set(items.map(i=>i.dp))].sort().map(d=>`<option>${esc(d)}</option>`).join('');fillSub();rebuild();
 }).catch(()=>{$('#meta').textContent='Could not load the item list. Reload the page.'});
 fillSessions([]);
 S.mode=API?'sheet':'local';if(API){$('#sess').readOnly=true;$('#sess').title='Set by the admin in the master sheet'}store.sub();
