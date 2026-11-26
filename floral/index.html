@@ -256,6 +256,10 @@ async function pull(){
 }
 const store={
   sub(){
+    if(S.mode==='sheet'&&!ls.get('migrated',false)){ /* counts saved before the sheet was connected: queue them for upload once */
+      const moved=[];try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&k.startsWith('stc_lines_')){const ss=k.slice(10);for(const l of (ls.get('lines_'+ss,[])||[])){moved.push({...l,ss:l.ss||ss,id:l.id&&String(l.id).startsWith('L')?l.id+'-'+Math.random().toString(36).slice(2,6):l.id||uid()})}}}}catch(e){}
+      if(moved.length)ls.set('outbox',[...box(),...moved]);ls.set('migrated',true);
+    }
     if(S.mode==='sheet'){S.server=ls.get('cache_'+S.sess,[]);mergeLines();syncText();pull().then(flush);
       clearInterval(pullT);pullT=setInterval(()=>{if(!document.hidden){pull();flush()}},20000)}
     else{S.lines=ls.get('lines_'+S.sess,[]);syncText();rebuild()}
