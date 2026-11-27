@@ -34,6 +34,7 @@ header{background:var(--brand);color:#fff;padding:14px max(4vw,14px) 0}
 .ctl label{font-size:13px;opacity:.85;display:flex;flex-direction:column;gap:2px}
 .ctl select,.ctl input{background:#ffffff1a;border:1px solid #ffffff40;color:#fff;border-radius:10px;padding:8px 10px;min-height:44px;font-size:16px}
 .ctl select option{color:#111}
+.ctl input[type=date]{color-scheme:dark}
 .ctl input::placeholder{color:#ffffffa0}
 .sync{font-size:13px;display:flex;align-items:center;gap:6px;opacity:.9}.dot{width:9px;height:9px;border-radius:50%;background:#f0a24a}.dot.on{background:#3fe39a}
 nav{display:flex;gap:4px;max-width:1240px;margin:12px auto 0}
@@ -139,8 +140,7 @@ table{font-size:13px}.stack thead{display:none}.stack tr{display:grid;padding-bl
     <h1>Stock Count<small>Floral Master · System qty = Oct'26 SOH</small></h1>
     <div class="ctl">
       <label>Location<select id="loc"></select></label>
-      <label>Count session<input id="sess" list="sessl" maxlength="40" style="width:130px"></label>
-      <datalist id="sessl"></datalist>
+      <label>Counting date<input id="sess" type="date" required style="width:170px"></label>
       <label>Counter name<input id="who" maxlength="40" placeholder="Your name" style="width:150px"></label>
       <span class="sync"><span class="dot" id="dot"></span><span id="synct">Connecting…</span></span>
       <span class="sync" id="offl" hidden></span>
@@ -209,7 +209,9 @@ const safe=s=>String(s).replace(/[^A-Za-z0-9_\-.~:@+]/g,'_').slice(0,150)||'x';
 const keyOf=it=>safe(it.r&&it.r!=='-'?it.r:'CID-'+(it.c||it.d));
 const initials=d=>esc((d||'?').split(/\s+/).slice(0,2).map(w=>w[0]||'').join('').toUpperCase());
 
-const S={items:[],by:new Map(),loc:ls.get('loc','DXB'),sess:ls.get('sess','NOV26'),who:ls.get('who',''),q:'',dept:'',grp:'',sub:'',status:'todo',sort:'dept',limit:60,
+const todayISO=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
+const niceDate=s=>{const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(s||'');return m?new Date(+m[1],m[2]-1,+m[3]).toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric'}):s};
+const S={items:[],by:new Map(),loc:ls.get('loc','DXB'),sess:todayISO(),who:ls.get('who',''),q:'',dept:'',grp:'',sub:'',status:'todo',sort:'dept',limit:60,
   lines:[],server:[],lastPull:0,agg:new Map(),db:null,mode:'loading',canWrite:true,unsub:null,cur:null,uid:null,downloads:null};
 
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('on'),1800)}
@@ -254,7 +256,6 @@ async function pull(){
   try{
     const r=await fetch(API+'?t='+encodeURIComponent(TOKEN)+'&session='+encodeURIComponent(S.sess)).then(r=>r.json());
     if(r.ok){
-      if(r.session&&r.session!==S.sess){S.sess=r.session;ls.set('sess',S.sess);$('#sess').value=S.sess;S.server=ls.get('cache_'+S.sess,[]);return pull()}
       S.server=r.lines||[];S.lastPull=Date.now();ls.set('cache_'+S.sess,S.server);mergeLines();
     }
   }catch(e){}
@@ -300,7 +301,7 @@ if('serviceWorker' in navigator){
 window.addEventListener('online',()=>{pull();flush()});window.addEventListener('offline',syncText);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&S.mode==='sheet'){pull();flush()}});
 function saveSessionName(){const k=ls.get('sessions',[]);if(!k.includes(S.sess)){k.push(S.sess);ls.set('sessions',k)}}
-function fillSessions(list){$('#sessl').innerHTML=[...new Set([...list,...ls.get('sessions',[]),S.sess])].map(s=>`<option value="${esc(s)}">`).join('')}
+function fillSessions(){}
 
 /* ---------- aggregation ---------- */
 function rebuild(){
@@ -437,7 +438,7 @@ function renderProg(){
   const people=new Map();for(const l of S.lines)if(l.loc===loc)people.set(l.by,(people.get(l.by)||0)+1);
   const allLoc=LOCS.map(([l,n])=>{let st=0,dn=0;for(const it of its){const s=sys(it,l),c=cnt(it._k,l);if(s>0)st++;if(c&&s>0)dn++}return [l,n,st,dn]});
   $('#v-prog').innerHTML=`<h2 style="font-size:26px;margin:6px 0 2px">${esc(LN[loc])}: ${fmt(pct,1)}% of stocked items counted</h2>
-  <div class="meta">Session ${esc(S.sess)} · counts from the whole team</div>
+  <div class="meta">Counting date ${esc(niceDate(S.sess))} · counts from the whole team</div>
   <div class="bar"><i style="width:${pct.toFixed(1)}%"></i></div>
   <div class="kpis"><div class="kpi"><span>Items counted</span><b>${fmt(done,0)} / ${fmt(stocked,0)}</b></div>
   <div class="kpi"><span>Matched system</span><b style="color:var(--ok)">${fmt(match,0)}</b></div>
@@ -459,12 +460,12 @@ function exportRows(){
   const all=document.querySelector('input[name=scope]:checked').value==='all',incl=$('#incl').checked;
   const locs=all?LOCS.map(x=>x[0]):[S.loc],rows=[];
   for(const l of locs){for(const it of [...S.items,...newItems()]){const s=sys(it,l),c=cnt(it._k,l);if(!c&&!(incl&&s>0))continue;
-    rows.push({'Location':LN[l],'Location Code':LCODE[l],'Item Status':it.st||'','RMT Code':it.r,'SKU (stock take)':it.k,'SKU (master)':it.ms||'','CID':it.c,'Description':it.d,'Department':it.dp,'Group':it.g,'Sub Group':it.sg,'UOM':it.u,
+    rows.push({'Counting Date':S.sess,'Location':LN[l],'Location Code':LCODE[l],'Item Status':it.st||'','RMT Code':it.r,'SKU (stock take)':it.k,'SKU (master)':it.ms||'','CID':it.c,'Description':it.d,'Department':it.dp,'Group':it.g,'Sub Group':it.sg,'UOM':it.u,
 "System Qty (Oct'26 SOH)":s,'Counted Qty':c?c.q:'','Variance Qty':c?Math.round((c.q-s)*1000)/1000:'',
       'Count Lines':c?c.n:0,'Counted By':c?[...c.who].join(', '):'','Last Counted':c?c.last:'','Notes':c?c.lines.map(x=>x.note).filter(Boolean).join(' | '):''})}}
   return rows;
 }
-function auditRows(){const all=document.querySelector('input[name=scope]:checked').value==='all';return S.lines.filter(l=>all||l.loc===S.loc).sort((a,b)=>a.at.localeCompare(b.at)).map(l=>{const it=S.by.get(l.key)||{};return {'Time':l.at,'Location':LN[l.loc],'Counter':l.by,'RMT Code':it.r||'','SKU':it.k||l.nc||'','Description':it.d||l.nd||'','Qty':l.q,'UOM':it.u||l.nu||'','Note':l.note||''}})}
+function auditRows(){const all=document.querySelector('input[name=scope]:checked').value==='all';return S.lines.filter(l=>all||l.loc===S.loc).sort((a,b)=>a.at.localeCompare(b.at)).map(l=>{const it=S.by.get(l.key)||{};return {'Counting Date':l.ss,'Time':l.at,'Location':LN[l.loc],'Counter':l.by,'RMT Code':it.r||'','SKU':it.k||l.nc||'','Description':it.d||l.nd||'','Qty':l.q,'UOM':it.u||l.nu||'','Note':l.note||''}})}
 const toDelim=(rows,d)=>{if(!rows.length)return '';const h=Object.keys(rows[0]);const f=v=>{v=String(v??'');return d===','&&/[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v.replace(/[\t\n]/g,' ')};return [h.join(d),...rows.map(r=>h.map(k=>f(r[k])).join(d))].join('\n')};
 const fname=ext=>`StockCount_${safe(S.sess)}_${document.querySelector('input[name=scope]:checked').value==='all'?'ALL':S.loc}_${new Date().toISOString().slice(0,10)}.${ext}`;
 function loadXLSX(){return window.XLSX?Promise.resolve():new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';s.onload=res;s.onerror=rej;document.head.appendChild(s)})}
@@ -502,7 +503,7 @@ document.addEventListener('error',e=>{const im=e.target;if(im.tagName==='IMG'&&i
 $('#loc').innerHTML=LOCS.map(([v,n,c])=>`<option value="${v}">${esc(n)} (${c})</option>`).join('');$('#loc').value=S.loc;
 $('#loc').addEventListener('change',e=>{S.loc=e.target.value;ls.set('loc',S.loc);rebuild()});
 $('#who').value=S.who;$('#who').addEventListener('change',e=>{S.who=e.target.value.trim();ls.set('who',S.who);if(S.cur)renderSheet()});
-$('#sess').value=S.sess;$('#sess').addEventListener('change',e=>{const v=e.target.value.trim().toUpperCase().replace(/\s+/g,'-');if(!v){e.target.value=S.sess;return}S.sess=v;e.target.value=v;ls.set('sess',v);saveSessionName();store.sub()});
+$('#sess').value=S.sess;$('#sess').max=todayISO();$('#sess').addEventListener('change',e=>{const v=e.target.value;if(!/^\d{4}-\d{2}-\d{2}$/.test(v)){e.target.value=S.sess;return}S.sess=v;saveSessionName();store.sub();toast('Showing counts for '+niceDate(v))});
 document.querySelector('nav').addEventListener('click',e=>{const b=e.target.closest('[data-t]');if(!b)return;document.querySelectorAll('nav button').forEach(x=>x.setAttribute('aria-selected',x===b));
   for(const t of ['count','prog','exp'])$('#v-'+t).hidden=t!==b.dataset.t;if(b.dataset.t==='prog')renderProg()});
 $('#csv').addEventListener('click',()=>{const r=exportRows();if(!r.length)return toast('Nothing to export yet');save(fname('csv'),'﻿'+toDelim(r,','))});
@@ -519,7 +520,7 @@ fetch('items.json').then(r=>r.json()).then(items=>{
   S.items=items;$('#dept').innerHTML+=[...new Set(items.map(i=>i.dp))].sort().map(d=>`<option>${esc(d)}</option>`).join('');fillGrp();fillSub();rebuild();
 }).catch(()=>{$('#meta').textContent='Could not load the item list. Reload the page.'});
 fillSessions([]);
-S.mode=API?'sheet':'local';if(API){$('#sess').readOnly=true;$('#sess').title='Set by the admin in the master sheet'}store.sub();
+S.mode=API?'sheet':'local';store.sub();
 }
 </script>
 </body>
