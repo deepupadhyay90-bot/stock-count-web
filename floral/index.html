@@ -194,7 +194,7 @@ table{font-size:13px}.stack thead{display:none}.stack tr{display:grid;padding-bl
 <script>
 {
 /* ---- connection to the master Google Sheet (filled in after the Apps Script is deployed) ---- */
-const API='';            // Apps Script web-app URL
+const API='https://script.google.com/macros/s/AKfycby9nwIQPbpr0WwZzq-j8ZE7X6HJakE4vs7dnkhLqOmIQxA5E4bbzOlYXBNI8B23kbAkwA/exec';            // Apps Script web-app URL
 const TOKEN='fsc-k7Q2m9';
 const LOCS=[['DXB','DXB Al Quoz','B2C-DXB-AQ'],['WH','Al Quoz Central Warehouse','WH-DXB-AQ'],['UMR','DXB UMM Warehouse','B2C-DXB-UM'],['SHJ','SHJ Nahda','B2C-SHJ-ND'],['AUH','AUH Mussafah','B2C-AUH-MF'],['AAN','AIN Al Nyadat','B2C-AIN-NY'],['RAK','RAK Mina Al Arab','B2C-RAK-MA'],['FUJ','FUJ Al Faseel','B2C-FUJ-AF']];
 const LCODE=Object.fromEntries(LOCS.map(x=>[x[0],x[2]]));
