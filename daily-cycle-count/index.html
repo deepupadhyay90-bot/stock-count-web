@@ -94,6 +94,7 @@ img.noimg{display:none}
 .tag.ok{background:color-mix(in srgb,var(--ok) 16%,transparent);color:var(--ok)}
 .tag.var{background:color-mix(in srgb,var(--acc) 16%,transparent);color:var(--acc)}
 
+.mid small .sqn{display:inline;-webkit-line-clamp:unset;font-weight:700;background:var(--brand2);color:#fff;border-radius:6px;padding:0 6px;font-size:12px;margin-right:2px}
 .tag.inact{background:color-mix(in srgb,var(--warn) 18%,transparent);color:var(--warn);margin-top:3px}
 .tag.act{background:color-mix(in srgb,var(--ok) 16%,transparent);color:var(--ok)}
 .tag.todo{background:var(--soft);color:var(--mute)}
@@ -193,7 +194,7 @@ table{font-size:13px}.stack thead{display:none}.stack tr{display:grid;padding-bl
         <div class="fl"><span>Department</span><div class="ms" id="dept" data-all="All departments"><button type="button" class="msb" aria-haspopup="true" aria-expanded="false">All departments</button><div class="msp" hidden></div></div></div>
         <div class="fl"><span>Department group</span><div class="ms" id="grp" data-all="All groups"><button type="button" class="msb" aria-haspopup="true" aria-expanded="false">All groups</button><div class="msp" hidden></div></div></div>
         <div class="fl"><span>Sub group</span><div class="ms" id="sub" data-all="All sub groups"><button type="button" class="msb" aria-haspopup="true" aria-expanded="false">All sub groups</button><div class="msp" hidden></div></div></div>
-        <label class="fl"><span>Sort</span><select id="sort"><option value="dept">Sort: department</option><option value="qty">Sort: system qty</option><option value="name">Sort: name A–Z</option><option value="recent">Sort: recently counted</option></select></label>
+        <label class="fl"><span>Sort</span><select id="sort"><option value="dept">Sort: count sequence</option><option value="qty">Sort: system qty</option><option value="name">Sort: name A–Z</option><option value="recent">Sort: recently counted</option></select></label>
       </div>
       <div class="meta" id="meta">Loading items…</div>
     </div>
@@ -403,7 +404,7 @@ function filtered(){
     return arr.map(i=>[ex(i),i]).sort((a,b)=>a[0]-b[0]||sys(b[1])-sys(a[1])).map(x=>x[1]);
   }
   arr=arr.filter(i=>{const s=status(i);return S.status==='all'||(S.status==='todo'&&s==='todo')||(S.status==='counted'&&(s==='ok'||s==='var'))||(S.status==='var'&&s==='var')});
-  const srt={dept:(a,b)=>(a.dp+a.g+a.sg).localeCompare(b.dp+b.g+b.sg)||a.d.localeCompare(b.d),qty:(a,b)=>sys(b)-sys(a),name:(a,b)=>a.d.localeCompare(b.d),
+  const srt={dept:(a,b)=>a.dp.localeCompare(b.dp)||((a.sq||0)-(b.sq||0))||(a.g+a.sg).localeCompare(b.g+b.sg)||a.d.localeCompare(b.d),qty:(a,b)=>sys(b)-sys(a),name:(a,b)=>a.d.localeCompare(b.d),
     recent:(a,b)=>((cnt(b._k)||{}).last||'').localeCompare((cnt(a._k)||{}).last||'')}[S.sort];
   return [...arr].sort(srt);
 }
@@ -420,7 +421,7 @@ function rowHTML(it){
   const pv=prev(it._k);
   const big=c?`<span class="cq"><b>${fmt(c.q)}</b> ${esc(it.u)}</span><span class="cl">Counted ${esc(shortDate(S.sess))}</span>`:`<span class="cq none"><b>—</b></span><span class="cl">Not counted yet</span>`;
   const tag=`${big}<span class="sm">Last count${pv?' '+esc(shortDate(pv.date))+': <i>'+fmt(pv.q)+'</i>':': —'}</span>`;
-  return `<button class="row" data-k="${esc(it._k)}">${thumb(it)}<span class="mid"><b>${esc(it.d)}</b><small>${esc(it.k||it.ms||'—')} · ${esc(it.r)}</small><small>${esc(it.dp)}${(it.g&&it.g!=='0')?' › '+esc(it.g):''}</small>${it.st==='Inactive'?'<span class="tag inact">Inactive</span>':''}</span><span class="nums">${tag}</span></button>`;
+  return `<button class="row" data-k="${esc(it._k)}">${thumb(it)}<span class="mid"><b>${esc(it.d)}</b><small>${esc(it.k||it.ms||'—')} · ${esc(it.r)}</small><small>${it.sq?'<b class="sqn">#'+it.sq+'</b> ':''}${esc(it.dp)}${(it.g&&it.g!=='0')?' › '+esc(it.g):''}${it.sq&&it.sg&&it.sg!=='0'?' › '+esc(it.sg):''}</small>${it.st==='Inactive'?'<span class="tag inact">Inactive</span>':''}</span><span class="nums">${tag}</span></button>`;
 }
 function renderList(){
   if(!S.items.length)return;
@@ -540,8 +541,8 @@ function renderProg(){
 function exportRows(){
   const all=document.querySelector('input[name=scope]:checked').value==='all',incl=$('#incl').checked;
   const locs=all?LOCS.map(x=>x[0]):[S.loc],rows=[];
-  for(const l of locs){for(const it of [...S.items,...newItems()]){const s=sys(it,l),c=cnt(it._k,l);if(!c&&!(incl&&s>0))continue;
-    rows.push({'Counting Date':S.sess,'Location':LN[l],'Location Code':LCODE[l],'Item Status':it.st||'','RMT Code':it.r,'SKU (stock take)':it.k,'SKU (master)':it.ms||'','CID':it.c,'Description':it.d,'Department':it.dp,'Group':it.g,'Sub Group':it.sg,'UOM':it.u,
+  for(const l of locs){for(const it of [...S.items].sort((a,b)=>a.dp.localeCompare(b.dp)||((a.sq||0)-(b.sq||0))).concat(newItems())){const s=sys(it,l),c=cnt(it._k,l);if(!c&&!(incl&&s>0))continue;
+    rows.push({'Count Seq':it.sq||'','Counting Date':S.sess,'Location':LN[l],'Location Code':LCODE[l],'Item Status':it.st||'','RMT Code':it.r,'SKU (stock take)':it.k,'SKU (master)':it.ms||'','CID':it.c,'Description':it.d,'Department':it.dp,'Group':it.g,'Sub Group':it.sg,'UOM':it.u,
 "System Qty (Oct'26 SOH)":s,'Counted Qty':c?c.q:'','Variance Qty':c?Math.round((c.q-s)*1000)/1000:'',
       'Count Lines':c?c.n:0,'Counted By':c?[...c.who].join(', '):'','Last Counted':c?c.last:'','Notes':c?c.lines.map(x=>x.note).filter(Boolean).join(' | '):''})}}
   return rows;
