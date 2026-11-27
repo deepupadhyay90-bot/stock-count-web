@@ -1,6 +1,6 @@
 // Keeps the Floral stock count app on the phone so it opens and works without internet.
 // Counts saved offline wait in the phone's storage and upload to the master sheet when back online.
-const VER = 'dfsc-v2';
+const VER = 'dfsc-v3';
 const CORE = ['./', 'index.html', 'items.json', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-180.png', 'icon-maskable-512.png'];
 const XLSX_URL = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
 const BUNDLES = Array.from({ length: 41 }, (_, i) => `b/${i}.json`);
@@ -55,7 +55,7 @@ self.addEventListener('fetch', e => {
   // page and item list: fresh when online, stored copy when offline
   e.respondWith(caches.open(VER).then(async c => {
     try {
-      const r = await fetch(req);
+      const r = await fetch(req.url, { cache: 'no-cache', credentials: 'same-origin' });   // always check for the newest version
       if (r.ok) c.put(req, r.clone());
       return r;
     } catch (err) {

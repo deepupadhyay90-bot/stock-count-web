@@ -342,7 +342,7 @@ const store={
 /* ---------- offline: keep the app, item list and photos on the phone ---------- */
 async function offlineStatus(){
   const el=$('#offl');if(!('caches' in window))return;
-  try{const c=await caches.open('dfsc-v2');const keys=await c.keys();const n=keys.filter(k=>/\/b\/\d+\.json/.test(k.url)).length;const core=keys.some(k=>/items\.json/.test(k.url));
+  try{const c=await caches.open('dfsc-v3');const keys=await c.keys();const n=keys.filter(k=>/\/b\/\d+\.json/.test(k.url)).length;const core=keys.some(k=>/items\.json/.test(k.url));
     el.hidden=false;
     if(core&&n>=41){el.textContent='\u2713 Ready to work offline';clearInterval(S.offT);S.offT=null}
     else{el.textContent=`Saving app for offline use\u2026 ${Math.round((n/41)*100)}%`;if(!S.offT)S.offT=setInterval(offlineStatus,4000)}
@@ -615,7 +615,7 @@ $('#xlsx').addEventListener('click',async()=>{const r=exportRows();if(!r.length)
   save(fname('xlsx'),new Uint8Array(XLSX.write(wb,{bookType:'xlsx',type:'array'})))});
 
 /* ---------- boot ---------- */
-fetch('items.json').then(r=>r.json()).then(items=>{
+fetch('items.json',{cache:'no-cache'}).then(r=>r.json()).then(items=>{
   for(const it of items){it._k=it.id||keyOf(it);
     it._codes=[it.r,it.k,it.ms,it.c].filter(Boolean).map(x=>String(x).toLowerCase());it._s=[it.r,it.k,it.ms,it.c,it.d,it.dp,it.g,it.sg].join(' ').toLowerCase();S.by.set(it._k,it)}
   S.items=items;prune();rebuild();
