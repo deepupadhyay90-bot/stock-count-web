@@ -65,6 +65,9 @@ img.noimg{display:none}
 .tag{display:inline-block;border-radius:99px;padding:2px 9px;font-size:12px;font-weight:600}
 .tag.ok{background:color-mix(in srgb,var(--ok) 16%,transparent);color:var(--ok)}
 .tag.var{background:color-mix(in srgb,var(--acc) 16%,transparent);color:var(--acc)}
+
+.tag.inact{background:color-mix(in srgb,var(--warn) 18%,transparent);color:var(--warn);margin-top:3px}
+.tag.act{background:color-mix(in srgb,var(--ok) 16%,transparent);color:var(--ok)}
 .tag.todo{background:var(--soft);color:var(--mute)}
 .empty{padding:40px 16px;text-align:center;color:var(--mute)}
 .more{display:flex;justify-content:center;margin-top:14px}
@@ -191,8 +194,9 @@ table{font-size:13px}.stack thead{display:none}.stack tr{display:grid;padding-bl
 /* ---- connection to the master Google Sheet (filled in after the Apps Script is deployed) ---- */
 const API='';            // Apps Script web-app URL
 const TOKEN='fsc-k7Q2m9';
-const LOCS=[['DXB','Dubai store'],['WH','Warehouse'],['UMR','Umm Ramool'],['SHJ','Sharjah'],['AUH','Abu Dhabi'],['AAN','Al Ain'],['RAK','Ras Al Khaimah'],['FUJ','Fujairah']];
-const LN=Object.fromEntries(LOCS);
+const LOCS=[['DXB','DXB Al Quoz','B2C-DXB-AQ'],['WH','Al Quoz Central Warehouse','WH-DXB-AQ'],['UMR','DXB UMM Warehouse','B2C-DXB-UM'],['SHJ','SHJ Nahda','B2C-SHJ-ND'],['AUH','AUH Mussafah','B2C-AUH-MF'],['AAN','AIN Al Nyadat','B2C-AIN-NY'],['RAK','RAK Mina Al Arab','B2C-RAK-MA'],['FUJ','FUJ Al Faseel','B2C-FUJ-AF']];
+const LCODE=Object.fromEntries(LOCS.map(x=>[x[0],x[2]]));
+const LN=Object.fromEntries(LOCS.map(x=>[x[0],x[1]]));
 const $=s=>document.querySelector(s);
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt=(n,d=2)=>Number(n||0).toLocaleString('en-US',{maximumFractionDigits:d});
@@ -280,7 +284,7 @@ const store={
 /* ---------- offline: keep the app, item list and photos on the phone ---------- */
 async function offlineStatus(){
   const el=$('#offl');if(!('caches' in window))return;
-  try{const c=await caches.open('floral-v1');const keys=await c.keys();const n=keys.filter(k=>/\/b\/\d+\.json/.test(k.url)).length;const core=keys.some(k=>/items\.json/.test(k.url));
+  try{const c=await caches.open('floral-v2');const keys=await c.keys();const n=keys.filter(k=>/\/b\/\d+\.json/.test(k.url)).length;const core=keys.some(k=>/items\.json/.test(k.url));
     el.hidden=false;
     if(core&&n>=41){el.textContent='\u2713 Ready to work offline';clearInterval(S.offT);S.offT=null}
     else{el.textContent=`Saving app for offline use\u2026 ${Math.round((n/41)*100)}%`;if(!S.offT)S.offT=setInterval(offlineStatus,4000)}
@@ -326,8 +330,8 @@ function filtered(){
     recent:(a,b)=>((cnt(b._k)||{}).last||'').localeCompare((cnt(a._k)||{}).last||'')}[S.sort];
   return [...arr].sort(srt);
 }
-const imgTag=(it,alt='')=>`<img data-im="${esc(it.im)}" data-ib="${Number(it.ib)}" alt="${esc(alt)}">`;
-function thumb(it,cls='th'){return `<span class="${cls}">${it.im?imgTag(it):initials(it.d)}</span>`}
+const imgTag=(it,alt='')=>it.iu?`<img src="${esc(it.iu)}" loading="lazy" referrerpolicy="no-referrer" data-fb="${it.im?esc(it.im):''}" data-fbb="${it.im?Number(it.ib):''}" alt="${esc(alt)}">`:`<img data-im="${esc(it.im)}" data-ib="${Number(it.ib)}" alt="${esc(alt)}">`;
+function thumb(it,cls='th'){return `<span class="${cls}">${(it.iu||it.im)?imgTag(it):initials(it.d)}</span>`}
 /* product images are packed in bundles (b/N.json) and attached as data URIs when visible */
 const BUN=new Map();
 const bundle=n=>{if(!BUN.has(n))BUN.set(n,fetch('b/'+n+'.json').then(r=>r.json()).catch(()=>({})));return BUN.get(n)};
@@ -337,7 +341,7 @@ const hydrate=root=>root.querySelectorAll('img[data-im]:not([src])').forEach(i=>
 function rowHTML(it){
   const c=cnt(it._k),s=status(it),sq=sys(it);
   const tag=s==='ok'?`<span class="tag ok">Matched ${fmt(c.q)}</span>`:s==='var'?`<span class="tag var">Counted ${fmt(c.q)} (${sgn(c.q-sq)})</span>`:`<span class="tag todo">Not counted</span>`;
-  return `<button class="row" data-k="${esc(it._k)}">${thumb(it)}<span class="mid"><b>${esc(it.d)}</b><small>${esc(it.k||it.ms||'—')} · ${esc(it.r)}</small><small>${esc(it.dp)} › ${esc(it.sg||it.g)}</small></span><span class="nums"><span>System <b>${fmt(sq)}</b> ${esc(it.u)}</span>${tag}</span></button>`;
+  return `<button class="row" data-k="${esc(it._k)}">${thumb(it)}<span class="mid"><b>${esc(it.d)}</b><small>${esc(it.k||it.ms||'—')} · ${esc(it.r)}</small><small>${esc(it.dp)} › ${esc(it.g||it.sg)}</small>${it.st==='Inactive'?'<span class="tag inact">Inactive</span>':''}</span><span class="nums"><span>System <b>${fmt(sq)}</b> ${esc(it.u)}</span>${tag}</span></button>`;
 }
 function renderList(){
   if(!S.items.length)return;
@@ -355,15 +359,15 @@ function renderSheet(first){
   const it=S.by.get(S.cur);if(!it){close();return}
   const keep=first?null:{q:$('#qty')?.value,n:$('#note')?.value};
   const c=cnt(it._k),sq=sys(it),cq=c?c.q:0;
-  const kv=[['SKU (stock take)',it.k],['SKU (master)',it.ms],['RMT code',it.r],['CID',it.c],['UOM',it.u],['Purchase UOM',it.pu?`${it.pu}${it.pf?' = '+fmt(it.pf)+' '+it.u:''}`:''],
-    ['Origin',it.o],['Buyer',it.by],['Component type',it.ct],['Status',it.st],['Group',it.g],['Sub group',it.sg],['Remark',it.rm],
+  const kv=[['Item status',it.st],['SKU (stock take)',it.k],['SKU (master)',it.ms],['RMT code',it.r],['CID',it.c],['UOM',it.u],['Purchase UOM',it.pu?`${it.pu}${it.pf?' = '+fmt(it.pf)+' '+it.u:''}`:''],
+    ['Origin',it.o],['Buyer',it.by],['Component type',it.ct],['Group',it.g],['Sub group',it.sg],['Remark',it.rm],
     ['Master link',it.mc&&it.mc!=='RMT'?'Matched by '+it.mc+(it.mr?' → '+it.mr:''):it.mc?'':'Not in component master']].filter(x=>x[1]);
   const locs=LOCS.map(([l,n])=>{const cc=cnt(it._k,l);return `<div class="${l===S.loc?'cur':''}">${esc(n)}<b>${fmt(sys(it,l))}</b>${cc?`<i>counted ${fmt(cc.q)}</i>`:''}</div>`}).join('');
   const pf=it.pf&&it.pf>1?it.pf:0;
   const lines=c?c.lines.slice().sort((a,b)=>a.at.localeCompare(b.at)).map(l=>`<div><span><b>${fmt(l.q)}</b> ${esc(it.u)}${l.note?' · '+esc(l.note):''}<br><small class="meta">${esc(l.by)} · ${esc(new Date(l.at).toLocaleString('en-GB',{dateStyle:'short',timeStyle:'short'}))}${l.pending?' · <b style="color:var(--warn)">waiting to upload</b>':''}</small></span>${S.canWrite&&(l.by===S.who||l.pending)?`<button data-del="${esc(l.id)}">Remove</button>`:''}</div>`).join(''):'';
-  $('#sheet').innerHTML=`<div class="shd"><div><h2>${esc(it.d)}</h2><small>${esc(it.dp)} › ${esc(it.g)} › ${esc(it.sg)}</small></div><button class="x" id="xclose" aria-label="Close">×</button></div>
+  $('#sheet').innerHTML=`<div class="shd"><div><h2>${esc(it.d)}</h2><small>${esc(it.dp)} › ${esc(it.g)} › ${esc(it.sg)}</small><div style="margin-top:6px"><span class="tag ${it.st==='Inactive'?'inact':'act'}" style="background:#fff">${it.st==='Inactive'?'Inactive item':'Active item'}</span></div></div><button class="x" id="xclose" aria-label="Close">×</button></div>
   <div class="sb">
-    <div style="display:grid;gap:12px;align-content:start">${it.im?`<div class="pic">${imgTag(it,it.d)}</div>`:`<div class="pic">${initials(it.d)}</div>`}
+    <div style="display:grid;gap:12px;align-content:start">${(it.iu||it.im)?`<div class="pic">${imgTag(it,it.d)}</div>`:`<div class="pic">${initials(it.d)}</div>`}
       <div><div class="meta" style="margin-bottom:6px">Oct’26 SOH by location · total <b>${fmt(it.q)} ${esc(it.u)}</b></div><div class="locs">${locs}</div></div></div>
     <div style="display:grid;gap:14px;align-content:start">
       <div class="countbox">
@@ -452,7 +456,7 @@ function exportRows(){
   const all=document.querySelector('input[name=scope]:checked').value==='all',incl=$('#incl').checked;
   const locs=all?LOCS.map(x=>x[0]):[S.loc],rows=[];
   for(const l of locs){for(const it of [...S.items,...newItems()]){const s=sys(it,l),c=cnt(it._k,l);if(!c&&!(incl&&s>0))continue;
-    rows.push({'Location':LN[l],'RMT Code':it.r,'SKU (stock take)':it.k,'SKU (master)':it.ms||'','CID':it.c,'Description':it.d,'Department':it.dp,'Group':it.g,'Sub Group':it.sg,'UOM':it.u,
+    rows.push({'Location':LN[l],'Location Code':LCODE[l],'Item Status':it.st||'','RMT Code':it.r,'SKU (stock take)':it.k,'SKU (master)':it.ms||'','CID':it.c,'Description':it.d,'Department':it.dp,'Group':it.g,'Sub Group':it.sg,'UOM':it.u,
 "System Qty (Oct'26 SOH)":s,'Counted Qty':c?c.q:'','Variance Qty':c?Math.round((c.q-s)*1000)/1000:'',
       'Count Lines':c?c.n:0,'Counted By':c?[...c.who].join(', '):'','Last Counted':c?c.last:'','Notes':c?c.lines.map(x=>x.note).filter(Boolean).join(' | '):''})}}
   return rows;
@@ -487,8 +491,8 @@ $('#ov').addEventListener('click',e=>{if(e.target.id==='ov'||e.target.id==='xclo
   const d=e.target.closest('[data-del]');if(d){if(d.dataset.arm){store.del(d.dataset.del).then(()=>toast('Line removed')).catch(()=>toast('Could not remove'))}else{d.dataset.arm=1;d.textContent='Tap again to remove'}}});
 $('#ov').addEventListener('submit',e=>{e.preventDefault();if(e.target.id==='cform')submitCount(false);if(e.target.id==='nform')saveNew()});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('#ov').classList.contains('open'))close()});
-document.addEventListener('error',e=>{if(e.target.tagName==='IMG'){const p=e.target.parentNode;e.target.remove();if(p&&!p.textContent)p.textContent='—'}},true);
-$('#loc').innerHTML=LOCS.map(([v,n])=>`<option value="${v}">${esc(n)} (${v})</option>`).join('');$('#loc').value=S.loc;
+document.addEventListener('error',e=>{const im=e.target;if(im.tagName==='IMG'&&im.dataset.fb){im.dataset.im=im.dataset.fb;im.dataset.ib=im.dataset.fbb;delete im.dataset.fb;im.removeAttribute('src');fill(im);return}if(e.target.tagName==='IMG'){const p=e.target.parentNode;e.target.remove();if(p&&!p.textContent)p.textContent='—'}},true);
+$('#loc').innerHTML=LOCS.map(([v,n,c])=>`<option value="${v}">${esc(n)} (${c})</option>`).join('');$('#loc').value=S.loc;
 $('#loc').addEventListener('change',e=>{S.loc=e.target.value;ls.set('loc',S.loc);rebuild()});
 $('#who').value=S.who;$('#who').addEventListener('change',e=>{S.who=e.target.value.trim();ls.set('who',S.who);if(S.cur)renderSheet()});
 $('#sess').value=S.sess;$('#sess').addEventListener('change',e=>{const v=e.target.value.trim().toUpperCase().replace(/\s+/g,'-');if(!v){e.target.value=S.sess;return}S.sess=v;e.target.value=v;ls.set('sess',v);saveSessionName();store.sub()});

@@ -1,6 +1,6 @@
 // Keeps the Floral stock count app on the phone so it opens and works without internet.
 // Counts saved offline wait in the phone's storage and upload to the master sheet when back online.
-const VER = 'floral-v1';
+const VER = 'floral-v2';
 const CORE = ['./', 'index.html', 'items.json', 'manifest.webmanifest', '../icon-192.png', '../icon-512.png', '../icon-180.png'];
 const XLSX_URL = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
 const BUNDLES = Array.from({ length: 41 }, (_, i) => `b/${i}.json`);
@@ -12,7 +12,7 @@ self.addEventListener('install', e => {
 self.addEventListener('activate', e => {
   e.waitUntil((async () => {
     const keys = await caches.keys();
-    await Promise.all(keys.filter(k => k.startsWith('floral-') && k !== VER).map(k => caches.delete(k)));
+    await Promise.all(keys.filter(k => k.startsWith('floral-') && k !== VER && k !== VER + '-img').map(k => caches.delete(k)));
     await self.clients.claim();
     precacheRest();
   })());
@@ -35,6 +35,13 @@ self.addEventListener('fetch', e => {
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
   if (url.hostname.endsWith('google.com') || url.hostname.endsWith('googleusercontent.com')) return; // master sheet: never cached
+  if (req.destination === 'image' && url.origin !== location.origin) {   // product photos from image links: keep a copy for offline
+    e.respondWith(caches.open(VER + '-img').then(async c => {
+      const hit = await c.match(req); if (hit) return hit;
+      const r = await fetch(req); if (r.ok || r.type === 'opaque') c.put(req, r.clone()); return r;
+    }));
+    return;
+  }
   if (url.href === XLSX_URL) { e.respondWith(caches.match(XLSX_URL).then(r => r || fetch(req))); return; }
   if (url.origin !== location.origin) return;
   if (url.pathname.includes('/b/')) {            // photos: cache first
