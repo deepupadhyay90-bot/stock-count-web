@@ -6,7 +6,12 @@
 <title>Daily Flower Stock Counting</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#0f3d2e">
-<link rel="apple-touch-icon" href="../icon-180.png">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Flower Count">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="robots" content="noindex,nofollow">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
@@ -35,6 +40,8 @@ header{background:var(--brand);color:#fff;padding:14px max(4vw,14px) 0}
 .ctl select,.ctl input{background:#ffffff1a;border:1px solid #ffffff40;color:#fff;border-radius:10px;padding:8px 10px;min-height:44px;font-size:16px}
 .ctl select option{color:#111}
 .ctl input[type=date]{color-scheme:dark}
+.instbtn{background:#fff;color:var(--brand);border:0;border-radius:10px;padding:8px 14px;min-height:44px;font-weight:700}
+.steps{margin:0;padding-left:22px;display:grid;gap:10px}.steps b{color:var(--brand2)}
 .ctl input::placeholder{color:#ffffffa0}
 .sync{font-size:13px;display:flex;align-items:center;gap:6px;opacity:.9}.dot{width:9px;height:9px;border-radius:50%;background:#f0a24a}.dot.on{background:#3fe39a}
 nav{display:flex;gap:4px;max-width:1240px;margin:12px auto 0}
@@ -144,6 +151,7 @@ table{font-size:13px}.stack thead{display:none}.stack tr{display:grid;padding-bl
       <label>Counter name<input id="who" maxlength="40" placeholder="Your name" style="width:150px"></label>
       <span class="sync"><span class="dot" id="dot"></span><span id="synct">Connecting…</span></span>
       <span class="sync" id="offl" hidden></span>
+      <button class="instbtn" id="instbtn" hidden>&#8681; Install app</button>
     </div>
   </div>
   <nav role="tablist">
@@ -287,7 +295,7 @@ const store={
 /* ---------- offline: keep the app, item list and photos on the phone ---------- */
 async function offlineStatus(){
   const el=$('#offl');if(!('caches' in window))return;
-  try{const c=await caches.open('dfsc-v1');const keys=await c.keys();const n=keys.filter(k=>/\/b\/\d+\.json/.test(k.url)).length;const core=keys.some(k=>/items\.json/.test(k.url));
+  try{const c=await caches.open('dfsc-v2');const keys=await c.keys();const n=keys.filter(k=>/\/b\/\d+\.json/.test(k.url)).length;const core=keys.some(k=>/items\.json/.test(k.url));
     el.hidden=false;
     if(core&&n>=41){el.textContent='\u2713 Ready to work offline';clearInterval(S.offT);S.offT=null}
     else{el.textContent=`Saving app for offline use\u2026 ${Math.round((n/41)*100)}%`;if(!S.offT)S.offT=setInterval(offlineStatus,4000)}
@@ -298,6 +306,22 @@ if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('message',offlineStatus);
   let reloaded=false;navigator.serviceWorker.addEventListener('controllerchange',()=>{if(!reloaded&&!$('#ov').classList.contains('open')){reloaded=true;location.reload()}});
 }
+/* ---------- install as an app ---------- */
+let instEvt=null;
+const standalone=()=>matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;
+const isIOS=/iphone|ipad|ipod/i.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+function showInst(){$('#instbtn').hidden=standalone()||!(instEvt||isIOS||/android/i.test(navigator.userAgent))}
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();instEvt=e;showInst()});
+window.addEventListener('appinstalled',()=>{instEvt=null;showInst();toast('Installed — open it from your home screen')});
+$('#instbtn').addEventListener('click',async()=>{
+  if(instEvt){instEvt.prompt();try{await instEvt.userChoice}catch(e){}instEvt=null;showInst();return}
+  S.cur=null;$('#ov').classList.add('open');
+  $('#sheet').innerHTML=`<div class="shd"><div><h2>Install Daily Flower Stock Counting</h2><small>Free · no app store needed · works offline</small></div><button class="x" id="xclose" aria-label="Close">×</button></div>
+  <div class="sb" style="grid-template-columns:1fr">${isIOS?`<ol class="steps"><li>Open this page in <b>Safari</b> (not Chrome or another browser).</li><li>Tap the <b>Share</b> button (square with an arrow) at the bottom of the screen.</li><li>Scroll down and tap <b>Add to Home Screen</b>.</li><li>Tap <b>Add</b>. The flower icon appears on your home screen; open the app from there.</li></ol>`
+  :`<ol class="steps"><li>Open this page in <b>Chrome</b>.</li><li>Tap the <b>⋮</b> menu at the top-right.</li><li>Tap <b>Install app</b> (or <b>Add to Home screen</b> → <b>Install</b>).</li><li>The flower icon appears with your apps; open it from there.</li></ol>`}
+  <p class="meta">Open it once on Wi-Fi so it saves everything for offline use.</p></div>`;
+});
+showInst();
 window.addEventListener('online',()=>{pull();flush()});window.addEventListener('offline',syncText);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&S.mode==='sheet'){pull();flush()}});
 function saveSessionName(){const k=ls.get('sessions',[]);if(!k.includes(S.sess)){k.push(S.sess);ls.set('sessions',k)}}
@@ -345,7 +369,7 @@ const hydrate=root=>root.querySelectorAll('img[data-im]:not([src])').forEach(i=>
 function rowHTML(it){
   const c=cnt(it._k),s=status(it),sq=sys(it);
   const tag=s==='ok'?`<span class="tag ok">Matched ${fmt(c.q)}</span>`:s==='var'?`<span class="tag var">Counted ${fmt(c.q)} (${sgn(c.q-sq)})</span>`:`<span class="tag todo">Not counted</span>`;
-  return `<button class="row" data-k="${esc(it._k)}">${thumb(it)}<span class="mid"><b>${esc(it.d)}</b><small>${esc(it.k||it.ms||'—')} · ${esc(it.r)}</small><small>${esc(it.dp)} › ${esc(it.g||it.sg)}</small>${it.st==='Inactive'?'<span class="tag inact">Inactive</span>':''}</span><span class="nums"><span>System <b>${fmt(sq)}</b> ${esc(it.u)}</span>${tag}</span></button>`;
+  return `<button class="row" data-k="${esc(it._k)}">${thumb(it)}<span class="mid"><b>${esc(it.d)}</b><small>${esc(it.k||it.ms||'—')} · ${esc(it.r)}</small><small>${esc(it.dp)}${(it.g&&it.g!=='0')?' › '+esc(it.g):''}</small>${it.st==='Inactive'?'<span class="tag inact">Inactive</span>':''}</span><span class="nums"><span>System <b>${fmt(sq)}</b> ${esc(it.u)}</span>${tag}</span></button>`;
 }
 function renderList(){
   if(!S.items.length)return;
