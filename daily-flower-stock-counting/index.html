@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Daily Flower Stock Counting</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f3d2e">
+<link rel="apple-touch-icon" href="../icon-180.png">
+<meta name="robots" content="noindex,nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* VOICE: a working floor tool — calm, fast, legible at arm's length with a scanner in hand.
+   IDEA: the paper count tag clipped to a shelf — code, picture, system qty, a box to write the count.
+   PICTURE: the live item list with product photos is the picture; the detail sheet is the tag.
+   COLOUR and TYPE: deep florist green field, white tags, one hot-pink accent for variances; Outfit + Inter.
+   LAYOUT: sticky search on top, list below, sheet slides up; tabs for Count / Progress / Export. */
+:root{color-scheme:light dark;
+--bg:light-dark(#f3f5f2,#0d1512);--card:light-dark(#fff,#16201c);--ink:light-dark(#10201a,#e6efe9);--mute:light-dark(#5d6d66,#93a59c);
+--line:light-dark(#dde4df,#27342e);--brand:#0f3d2e;--brand2:light-dark(#145c43,#1d7a59);--acc:#e2336f;--ok:light-dark(#137a4b,#3fc38a);--warn:light-dark(#b25b00,#f0a24a);
+--soft:light-dark(#e9f1ec,#1b2a24)}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 Inter,system-ui,sans-serif;overflow-x:clip}
+h1,h2,h3{font-family:Outfit,Inter,sans-serif;margin:0;line-height:1.1}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
+header{background:var(--brand);color:#fff;padding:14px max(4vw,14px) 0}
+.top{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between;max-width:1240px;margin:auto}
+.top h1{font-size:24px}.top h1 small{display:block;font:500 13px Inter;opacity:.75;margin-top:3px}
+.ctl{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.ctl label{font-size:13px;opacity:.85;display:flex;flex-direction:column;gap:2px}
+.ctl select,.ctl input{background:#ffffff1a;border:1px solid #ffffff40;color:#fff;border-radius:10px;padding:8px 10px;min-height:44px;font-size:16px}
+.ctl select option{color:#111}
+.ctl input[type=date]{color-scheme:dark}
+.ctl input::placeholder{color:#ffffffa0}
+.sync{font-size:13px;display:flex;align-items:center;gap:6px;opacity:.9}.dot{width:9px;height:9px;border-radius:50%;background:#f0a24a}.dot.on{background:#3fe39a}
+nav{display:flex;gap:4px;max-width:1240px;margin:12px auto 0}
+nav button{background:none;border:0;color:#ffffffb0;padding:12px 16px;border-radius:12px 12px 0 0;font-weight:600;min-height:44px}
+nav button[aria-selected=true]{background:var(--bg);color:var(--ink)}
+main{max-width:1240px;margin:auto;padding:14px max(4vw,14px) 60px}
+.sbar{position:sticky;top:0;z-index:5;background:var(--bg);padding:10px 0;display:grid;gap:8px}
+.search{display:flex;gap:8px}
+.search input{flex:1;border:2px solid var(--brand2);border-radius:14px;padding:12px 14px;font-size:18px;background:var(--card);min-height:52px}
+.btn{border:1px solid var(--line);background:var(--card);border-radius:12px;padding:10px 14px;min-height:44px;font-weight:600}
+.btn.pri{background:var(--brand2);border-color:var(--brand2);color:#fff}.btn.acc{background:var(--acc);border-color:var(--acc);color:#fff}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.fl{display:flex;flex-direction:column;gap:2px;font-size:12px;color:var(--mute);font-weight:600}
+.filters select{max-width:100%;border:1px solid var(--line);background:var(--card);border-radius:10px;padding:8px;min-height:44px;font-size:16px}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{border:1px solid var(--line);background:var(--card);border-radius:99px;padding:8px 14px;min-height:40px;font-size:14px;font-weight:500}
+.chip[aria-pressed=true]{background:var(--brand2);color:#fff;border-color:var(--brand2)}
+.meta{font-size:14px;color:var(--mute)}
+.list{display:grid;gap:8px;grid-template-columns:repeat(auto-fill,minmax(min(100%,520px),1fr))}
+.row{display:grid;grid-template-columns:72px minmax(0,1fr) auto;gap:12px;align-items:center;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px;width:100%}
+.row:hover{border-color:var(--brand2)}
+.th{width:72px;height:72px;border-radius:10px;background:var(--soft);display:grid;place-items:center;overflow:hidden;font:600 18px Outfit;color:var(--brand2)}
+.th img{width:100%;height:100%;object-fit:contain;background:#fff}
+img.noimg{display:none}
+.mid b{display:block;font-weight:600;line-height:1.3;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.mid small{display:block;color:var(--mute);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nums{text-align:right;font-size:13px;color:var(--mute);white-space:nowrap;display:grid;gap:3px}
+.nums b{font:600 20px Outfit;color:var(--ink)}
+.tag{display:inline-block;border-radius:99px;padding:2px 9px;font-size:12px;font-weight:600}
+.tag.ok{background:color-mix(in srgb,var(--ok) 16%,transparent);color:var(--ok)}
+.tag.var{background:color-mix(in srgb,var(--acc) 16%,transparent);color:var(--acc)}
+
+.tag.inact{background:color-mix(in srgb,var(--warn) 18%,transparent);color:var(--warn);margin-top:3px}
+.tag.act{background:color-mix(in srgb,var(--ok) 16%,transparent);color:var(--ok)}
+.tag.todo{background:var(--soft);color:var(--mute)}
+.empty{padding:40px 16px;text-align:center;color:var(--mute)}
+.more{display:flex;justify-content:center;margin-top:14px}
+/* sheet */
+.ov{position:fixed;inset:0;background:#0009;z-index:20;display:none;align-items:flex-end;justify-content:center}
+.ov.open{display:flex}
+.sheet{background:var(--bg);width:min(980px,100%);max-height:94vh;overflow:auto;border-radius:20px 20px 0 0;padding:0 0 24px}
+@media(min-width:760px){.ov{align-items:center}.sheet{border-radius:20px;max-height:90vh}}
+.shd{position:sticky;top:0;background:var(--brand);color:#fff;padding:14px 18px;display:flex;gap:12px;align-items:flex-start;justify-content:space-between;z-index:2}
+.shd h2{font-size:20px}.shd small{opacity:.8;font-size:13px}
+.x{background:#ffffff22;border:0;color:#fff;border-radius:10px;min-width:44px;min-height:44px;font-size:22px}
+.sb{display:grid;gap:16px;padding:16px 18px;grid-template-columns:minmax(0,1fr)}
+@media(min-width:760px){.sb{grid-template-columns:minmax(0,300px) minmax(0,1fr)}}
+@media(max-width:759px){.pic{aspect-ratio:auto;height:170px}}
+@media(max-width:600px){.sbar{position:static}.fl{flex:1 1 45%}.fl select{width:100%}.chip{padding:8px 11px}}
+.pic{background:#fff;border-radius:16px;border:1px solid var(--line);aspect-ratio:1;display:grid;place-items:center;overflow:hidden;font:700 48px Outfit;color:var(--brand2)}
+.pic img{width:100%;height:100%;object-fit:contain}
+.kv{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.kv div{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:7px 10px}
+.kv span{display:block;font-size:12px;color:var(--mute)}.kv b{font-weight:600;overflow-wrap:anywhere}
+.locs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.locs div{border:1px solid var(--line);border-radius:10px;padding:6px 8px;background:var(--card);font-size:12px;color:var(--mute)}
+.locs div.cur{border:2px solid var(--brand2);background:var(--soft)}
+.locs b{display:block;font:600 17px Outfit;color:var(--ink)}
+.locs i{font-style:normal;color:var(--ok)}
+.countbox{background:var(--card);border:2px solid var(--brand2);border-radius:16px;padding:14px;display:grid;gap:12px}
+.big{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;text-align:center}
+.big div{background:var(--soft);border-radius:12px;padding:8px}.big span{font-size:12px;color:var(--mute);display:block}
+.big b{font:700 clamp(22px,5vw,30px) Outfit}
+.qrow{display:flex;gap:8px;flex-wrap:wrap}
+.qrow input{flex:1 1 140px;border:2px solid var(--line);border-radius:12px;padding:10px 12px;font-size:22px;font-weight:600;min-height:54px;background:var(--bg);text-align:center}
+.qrow input.note{font-size:16px;font-weight:400;text-align:left}
+.step{min-width:54px;font-size:22px}
+.lines{display:grid;gap:4px;font-size:14px}
+.lines div{display:flex;gap:8px;align-items:center;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0}
+.lines button{background:none;border:0;color:var(--acc);min-height:36px;padding:0 8px;font-size:13px}
+.warnbar{background:color-mix(in srgb,var(--warn) 15%,transparent);color:var(--warn);border-radius:10px;padding:8px 12px;font-size:14px}
+/* progress */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin:8px 0 16px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px}
+.kpi span{font-size:13px;color:var(--mute)}.kpi b{display:block;font:700 clamp(24px,4vw,32px) Outfit}
+.bar{height:14px;background:var(--soft);border-radius:99px;overflow:hidden;margin:6px 0 18px}.bar i{display:block;height:100%;background:var(--brand2)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:14px}
+.card h3{font-size:18px;margin-bottom:10px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{padding:7px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{font-size:12px;color:var(--mute);font-weight:600}
+td.n,th.n{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+td.neg{color:var(--acc)}td.pos{color:var(--ok)}
+tr.click{cursor:pointer}tr.click:hover td{background:var(--soft)}
+.mini{display:inline-block;width:70px;height:8px;background:var(--soft);border-radius:9px;vertical-align:middle;margin-right:6px;overflow:hidden}.mini i{display:block;height:100%;background:var(--brand2)}
+.scroll{overflow-x:auto}
+.opts{display:grid;gap:10px;max-width:640px}
+.opts label{display:flex;gap:10px;align-items:center;min-height:44px}
+.opts input[type=checkbox],.opts input[type=radio]{width:22px;height:22px;accent-color:var(--brand2)}
+.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 18px;border-radius:12px;z-index:40;font-weight:600;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.on{opacity:1}
+[hidden]{display:none!important}
+@media(max-width:600px){.top h1{font-size:20px}.row{grid-template-columns:56px minmax(0,1fr) auto}.th{width:56px;height:56px}.locs{grid-template-columns:repeat(2,minmax(0,1fr))}
+table{font-size:13px}.stack thead{display:none}.stack tr{display:grid;padding-block:8px}.stack td{display:flow-root;border:0;padding:2px 0;padding-inline-start:8em;text-align:start}.stack td::before{content:attr(data-l);float:inline-start;width:7.5em;margin-inline-start:-8em;color:var(--mute)}.stack td:empty{display:none}}
+@media(prefers-reduced-motion:no-preference){.ov.open .sheet{animation:up .22s ease-out}@keyframes up{from{transform:translateY(30px);opacity:.4}}}
+</style>
+<script>new MutationObserver(()=>{for(const c of document.querySelectorAll('.stack td:not([data-l])')){let i=0,p=c;while(p=p.previousElementSibling)i+=p.colSpan;c.dataset.l=c.closest('table').rows[0].cells[i]?.textContent||''}}).observe(document,{childList:true,subtree:true})</script>
+</head>
+<body>
+<header>
+  <div class="top">
+    <h1>Daily Flower Stock Counting<small>Floral Master · System qty = Oct'26 SOH</small></h1>
+    <div class="ctl">
+      <label>Location<select id="loc"></select></label>
+      <label>Counting date<input id="sess" type="date" required style="width:170px"></label>
+      <label>Counter name<input id="who" maxlength="40" placeholder="Your name" style="width:150px"></label>
+      <span class="sync"><span class="dot" id="dot"></span><span id="synct">Connecting…</span></span>
+      <span class="sync" id="offl" hidden></span>
+    </div>
+  </div>
+  <nav role="tablist">
+    <button role="tab" data-t="count" aria-selected="true">Count</button>
+    <button role="tab" data-t="prog" aria-selected="false">Progress</button>
+    <button role="tab" data-t="exp" aria-selected="false">Export</button>
+  </nav>
+</header>
+<main>
+  <section id="v-count">
+    <div class="sbar">
+      <div class="search">
+        <input id="q" type="search" placeholder="Scan or type SKU, RMT code, CID or name…" autocomplete="off" enterkeyhint="search">
+        <button class="btn" id="newbtn" title="Record an item that is not in the list">+ New</button>
+      </div>
+      <div class="filters">
+        <div class="chips" id="stat"></div>
+        <label class="fl"><span>Department</span><select id="dept"><option value="">All departments</option></select></label>
+        <label class="fl"><span>Department group</span><select id="grp"><option value="">All groups</option></select></label>
+        <label class="fl"><span>Sub group</span><select id="sub"><option value="">All sub groups</option></select></label>
+        <label class="fl"><span>Sort</span><select id="sort"><option value="dept">Sort: department</option><option value="qty">Sort: system qty</option><option value="name">Sort: name A–Z</option><option value="recent">Sort: recently counted</option></select></label>
+      </div>
+      <div class="meta" id="meta">Loading items…</div>
+    </div>
+    <div class="list" id="list"></div>
+    <div class="more"><button class="btn" id="morebtn" hidden>Show more</button></div>
+  </section>
+  <section id="v-prog" hidden></section>
+  <section id="v-exp" hidden>
+    <div class="card opts">
+      <h3>Export counts</h3>
+      <label><input type="radio" name="scope" value="loc" checked> Current location only</label>
+      <label><input type="radio" name="scope" value="all"> All locations</label>
+      <label><input type="checkbox" id="incl" checked> Include items with system stock that were not counted (counted left blank)</label>
+      <div class="qrow">
+        <button class="btn pri" id="xlsx">Download Excel (.xlsx)</button>
+        <button class="btn" id="csv">Download CSV</button>
+        <button class="btn" id="copy">Copy for Excel</button>
+      </div>
+      <p class="meta" id="expmeta">The Excel file has two sheets: a summary per item and location, and every count line with who counted it and when.</p>
+    </div>
+  </section>
+</main>
+
+<div class="ov" id="ov"><div class="sheet" role="dialog" aria-modal="true" id="sheet"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+{
+/* ---- connection to the master Google Sheet (filled in after the Apps Script is deployed) ---- */
+const API='https://script.google.com/macros/s/AKfycby9nwIQPbpr0WwZzq-j8ZE7X6HJakE4vs7dnkhLqOmIQxA5E4bbzOlYXBNI8B23kbAkwA/exec';            // Apps Script web-app URL
+const TOKEN='fsc-k7Q2m9';
+const LOCS=[['DXB','DXB Al Quoz','B2C-DXB-AQ'],['WH','Al Quoz Central Warehouse','WH-DXB-AQ'],['UMR','DXB UMM Warehouse','B2C-DXB-UM'],['SHJ','SHJ Nahda','B2C-SHJ-ND'],['AUH','AUH Mussafah','B2C-AUH-MF'],['AAN','AIN Al Nyadat','B2C-AIN-NY'],['RAK','RAK Mina Al Arab','B2C-RAK-MA'],['FUJ','FUJ Al Faseel','B2C-FUJ-AF']];
+const LCODE=Object.fromEntries(LOCS.map(x=>[x[0],x[2]]));
+const LN=Object.fromEntries(LOCS.map(x=>[x[0],x[1]]));
+const $=s=>document.querySelector(s);
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt=(n,d=2)=>Number(n||0).toLocaleString('en-US',{maximumFractionDigits:d});
+const aed=n=>'AED '+Number(n||0).toLocaleString('en-US',{maximumFractionDigits:0});
+const sgn=n=>(n>0?'+':'')+fmt(n);
+const ls={get(k,d){try{const v=localStorage.getItem('stc_'+k);return v==null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem('stc_'+k,JSON.stringify(v))}catch(e){}}};
+const safe=s=>String(s).replace(/[^A-Za-z0-9_\-.~:@+]/g,'_').slice(0,150)||'x';
+const keyOf=it=>safe(it.r&&it.r!=='-'?it.r:'CID-'+(it.c||it.d));
+const initials=d=>esc((d||'?').split(/\s+/).slice(0,2).map(w=>w[0]||'').join('').toUpperCase());
+
+const todayISO=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
+const niceDate=s=>{const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(s||'');return m?new Date(+m[1],m[2]-1,+m[3]).toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric'}):s};
+const S={items:[],by:new Map(),loc:ls.get('loc','DXB'),sess:todayISO(),who:ls.get('who',''),q:'',dept:'',grp:'',sub:'',status:'todo',sort:'dept',limit:60,
+  lines:[],server:[],lastPull:0,agg:new Map(),db:null,mode:'loading',canWrite:true,unsub:null,cur:null,uid:null,downloads:null};
+
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('on'),1800)}
+function setSync(on,txt){$('#dot').classList.toggle('on',on);$('#synct').textContent=txt}
+
+/* ---------- storage: shared db or this device ---------- */
+const uid=()=>Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8)+'-'+Math.random().toString(36).slice(2,6);
+let pullT=null,flushing=false;
+const box=()=>ls.get('outbox',[]),dbox=()=>ls.get('delbox',[]);
+function mergeLines(){
+  const del=new Set(dbox()),out=box().filter(l=>l.ss===S.sess);
+  const seen=new Set(),arr=[];
+  for(const l of S.server)if(!del.has(l.id)){seen.add(l.id);arr.push(l)}
+  for(const l of out)if(!seen.has(l.id))arr.push({...l,pending:1});
+  S.lines=arr;rebuild();
+}
+function syncText(){
+  const n=box().length+dbox().length;
+  if(S.mode==='sheet'){
+    if(!navigator.onLine)setSync(false,`Offline · ${n} waiting to upload`);
+    else if(n)setSync(false,`Uploading ${n}…`);
+    else if(S.lastPull)setSync(true,'Live · saved to master sheet');
+    else setSync(false,'Connecting…');
+  }else setSync(false,'Saved on this phone · export to share');
+}
+const post=body=>fetch(API,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({t:TOKEN,...body})}).then(r=>r.json());
+async function flush(){
+  if(S.mode!=='sheet'||flushing||!navigator.onLine)return;flushing=true;
+  try{
+    const o=box();
+    if(o.length){const r=await post({action:'add',lines:o.slice(0,200)});
+      if(r.ok){const done=new Set(r.done);ls.set('outbox',box().filter(l=>!done.has(l.id)));const have=new Set(S.server.map(l=>l.id));for(const l of o)if(done.has(l.id)&&!have.has(l.id))S.server.push(l)}}
+    const d=dbox();
+    if(d.length){const r=await post({action:'del',ids:d});
+      if(r.ok){const done=new Set(r.done);ls.set('delbox',dbox().filter(x=>!done.has(x)));S.server=S.server.filter(l=>!done.has(l.id))}}
+  }catch(e){}
+  flushing=false;mergeLines();syncText();
+  if((box().length||dbox().length)&&navigator.onLine)setTimeout(flush,5000);
+}
+async function pull(){
+  if(S.mode!=='sheet'||!navigator.onLine){syncText();return}
+  try{
+    const r=await fetch(API+'?t='+encodeURIComponent(TOKEN)+'&session='+encodeURIComponent(S.sess)).then(r=>r.json());
+    if(r.ok){
+      S.server=r.lines||[];S.lastPull=Date.now();ls.set('cache_'+S.sess,S.server);mergeLines();
+    }
+  }catch(e){}
+  syncText();
+}
+const store={
+  sub(){
+    if(S.mode==='sheet'&&!ls.get('migrated',false)){ /* counts saved before the sheet was connected: queue them for upload once */
+      const moved=[];try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&k.startsWith('stc_lines_')){const ss=k.slice(10);for(const l of (ls.get('lines_'+ss,[])||[])){moved.push({...l,ss:l.ss||ss,id:l.id&&String(l.id).startsWith('L')?l.id+'-'+Math.random().toString(36).slice(2,6):l.id||uid()})}}}}catch(e){}
+      if(moved.length)ls.set('outbox',[...box(),...moved]);ls.set('migrated',true);
+    }
+    if(S.mode==='sheet'){S.server=ls.get('cache_'+S.sess,[]);mergeLines();syncText();pull().then(flush);
+      clearInterval(pullT);pullT=setInterval(()=>{if(!document.hidden){pull();flush()}},20000)}
+    else{S.lines=ls.get('lines_'+S.sess,[]);syncText();rebuild()}
+  },
+  async add(l){
+    l.ss=S.sess;l.at=new Date().toISOString();l.by=S.who||'Unknown';l.id=uid();
+    const it=S.by.get(l.key);if(it){l.r=it.r;l.k=it.k;l.d=it.d;l.u=it.u}
+    if(S.mode==='sheet'){ls.set('outbox',[...box(),l]);mergeLines();syncText();flush()}
+    else{S.lines.push(l);ls.set('lines_'+S.sess,S.lines);rebuild()}
+  },
+  async del(id){
+    if(S.mode==='sheet'){
+      const o=box();if(o.some(l=>l.id===id))ls.set('outbox',o.filter(l=>l.id!==id));else ls.set('delbox',[...dbox(),id]);
+      mergeLines();syncText();flush();
+    }else{S.lines=S.lines.filter(l=>l.id!==id);ls.set('lines_'+S.sess,S.lines);rebuild()}
+  }
+};
+/* ---------- offline: keep the app, item list and photos on the phone ---------- */
+async function offlineStatus(){
+  const el=$('#offl');if(!('caches' in window))return;
+  try{const c=await caches.open('dfsc-v1');const keys=await c.keys();const n=keys.filter(k=>/\/b\/\d+\.json/.test(k.url)).length;const core=keys.some(k=>/items\.json/.test(k.url));
+    el.hidden=false;
+    if(core&&n>=41){el.textContent='\u2713 Ready to work offline';clearInterval(S.offT);S.offT=null}
+    else{el.textContent=`Saving app for offline use\u2026 ${Math.round((n/41)*100)}%`;if(!S.offT)S.offT=setInterval(offlineStatus,4000)}
+  }catch(e){}
+}
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('sw.js',{scope:'./'}).then(()=>{offlineStatus();navigator.serviceWorker.ready.then(r=>{r.active&&r.active.postMessage('precache')})}).catch(()=>{});
+  navigator.serviceWorker.addEventListener('message',offlineStatus);
+  let reloaded=false;navigator.serviceWorker.addEventListener('controllerchange',()=>{if(!reloaded&&!$('#ov').classList.contains('open')){reloaded=true;location.reload()}});
+}
+window.addEventListener('online',()=>{pull();flush()});window.addEventListener('offline',syncText);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&S.mode==='sheet'){pull();flush()}});
+function saveSessionName(){const k=ls.get('sessions',[]);if(!k.includes(S.sess)){k.push(S.sess);ls.set('sessions',k)}}
+function fillSessions(){}
+
+/* ---------- aggregation ---------- */
+function rebuild(){
+  const a=new Map();
+  for(const l of S.lines){
+    const k=l.key+'|'+l.loc;let g=a.get(k);
+    if(!g){g={q:0,n:0,last:'',who:new Set(),lines:[]};a.set(k,g)}
+    g.q+=Number(l.q)||0;g.n++;g.lines.push(l);g.who.add(l.by);if(l.at>g.last)g.last=l.at;
+  }
+  S.agg=a;renderList();if(!$('#v-prog').hidden)renderProg();if(S.cur)renderSheet();
+}
+const cnt=(k,loc=S.loc)=>S.agg.get(k+'|'+loc);
+const sys=(it,loc=S.loc)=>(it.l&&it.l[loc])||0;
+function status(it){const c=cnt(it._k);if(!c)return sys(it)>0?'todo':'none';return Math.abs(c.q-sys(it))>1e-9?'var':'ok'}
+
+/* ---------- list ---------- */
+const STATS=[['todo','To count'],['counted','Counted'],['var','Variance'],['all','All items']];
+$('#stat').innerHTML=STATS.map(([v,t])=>`<button class="chip" data-s="${v}" aria-pressed="${v===S.status}">${t}</button>`).join('');
+function filtered(){
+  const q=S.q.trim().toLowerCase();let arr=S.items;
+  if(S.dept)arr=arr.filter(i=>i.dp===S.dept);if(S.grp)arr=arr.filter(i=>gOf(i)===S.grp);if(S.sub)arr=arr.filter(i=>sgOf(i)===S.sub);
+  if(q){
+    const toks=q.split(/\s+/);
+    arr=arr.filter(i=>toks.every(t=>i._s.includes(t)));
+    const ex=i=>i._codes.includes(q)?0:i._codes.some(c=>c.startsWith(q))?1:2;
+    return arr.map(i=>[ex(i),i]).sort((a,b)=>a[0]-b[0]||sys(b[1])-sys(a[1])).map(x=>x[1]);
+  }
+  arr=arr.filter(i=>{const s=status(i);return S.status==='all'||(S.status==='todo'&&s==='todo')||(S.status==='counted'&&(s==='ok'||s==='var'))||(S.status==='var'&&s==='var')});
+  const srt={dept:(a,b)=>(a.dp+a.g+a.sg).localeCompare(b.dp+b.g+b.sg)||a.d.localeCompare(b.d),qty:(a,b)=>sys(b)-sys(a),name:(a,b)=>a.d.localeCompare(b.d),
+    recent:(a,b)=>((cnt(b._k)||{}).last||'').localeCompare((cnt(a._k)||{}).last||'')}[S.sort];
+  return [...arr].sort(srt);
+}
+const imgTag=(it,alt='')=>it.iu?`<img src="${esc(it.iu)}" loading="lazy" referrerpolicy="no-referrer" data-fb="${it.im?esc(it.im):''}" data-fbb="${it.im?Number(it.ib):''}" alt="${esc(alt)}">`:`<img data-im="${esc(it.im)}" data-ib="${Number(it.ib)}" alt="${esc(alt)}">`;
+function thumb(it,cls='th'){return `<span class="${cls}">${(it.iu||it.im)?imgTag(it):initials(it.d)}</span>`}
+/* product images are packed in bundles (b/N.json) and attached as data URIs when visible */
+const BUN=new Map();
+const bundle=n=>{if(!BUN.has(n))BUN.set(n,fetch('b/'+n+'.json').then(r=>r.json()).catch(()=>({})));return BUN.get(n)};
+const fill=async img=>{if(img.src)return;const b=await bundle(img.dataset.ib);const d=b[img.dataset.im];if(d)img.src='data:image/jpeg;base64,'+d;else{const p=img.parentNode;img.remove();if(p&&!p.textContent)p.textContent='—'}};
+const io=('IntersectionObserver' in window)?new IntersectionObserver(es=>{for(const e of es)if(e.isIntersecting){io.unobserve(e.target);fill(e.target)}},{rootMargin:'300px'}):null;
+const hydrate=root=>root.querySelectorAll('img[data-im]:not([src])').forEach(i=>io?io.observe(i):fill(i));
+function rowHTML(it){
+  const c=cnt(it._k),s=status(it),sq=sys(it);
+  const tag=s==='ok'?`<span class="tag ok">Matched ${fmt(c.q)}</span>`:s==='var'?`<span class="tag var">Counted ${fmt(c.q)} (${sgn(c.q-sq)})</span>`:`<span class="tag todo">Not counted</span>`;
+  return `<button class="row" data-k="${esc(it._k)}">${thumb(it)}<span class="mid"><b>${esc(it.d)}</b><small>${esc(it.k||it.ms||'—')} · ${esc(it.r)}</small><small>${esc(it.dp)} › ${esc(it.g||it.sg)}</small>${it.st==='Inactive'?'<span class="tag inact">Inactive</span>':''}</span><span class="nums"><span>System <b>${fmt(sq)}</b> ${esc(it.u)}</span>${tag}</span></button>`;
+}
+function renderList(){
+  if(!S.items.length)return;
+  const arr=filtered(),shown=arr.slice(0,S.limit);
+  const withStock=S.items.filter(i=>sys(i)>0).length,counted=S.items.filter(i=>cnt(i._k)).length;
+  $('#meta').textContent=(S.q?`${arr.length} matches across all items`:`${arr.length} items`)+` · ${LN[S.loc]}: ${counted} of ${withStock} stocked items counted`;
+  $('#list').innerHTML=shown.length?shown.map(rowHTML).join(''):`<div class="empty">No items match.${S.q?' <br><br><button class="btn acc" id="newfromq">Record “'+esc(S.q)+'” as an item not in the list</button>':''}</div>`;
+  hydrate($('#list'));$('#morebtn').hidden=arr.length<=S.limit;$('#morebtn').textContent=`Show more (${arr.length-S.limit} left)`;
+}
+
+/* ---------- item sheet ---------- */
+function open(k){S.cur=k;S.unit='base';renderSheet(true);$('#ov').classList.add('open');setTimeout(()=>$('#qty')?.focus(),60)}
+function close(){S.cur=null;$('#ov').classList.remove('open');$('#q').focus();$('#q').select()}
+function renderSheet(first){
+  const it=S.by.get(S.cur);if(!it){close();return}
+  const keep=first?null:{q:$('#qty')?.value,n:$('#note')?.value};
+  const c=cnt(it._k),sq=sys(it),cq=c?c.q:0;
+  const kv=[['Item status',it.st],['SKU (stock take)',it.k],['SKU (master)',it.ms],['RMT code',it.r],['CID',it.c],['UOM',it.u],['Purchase UOM',it.pu?`${it.pu}${it.pf?' = '+fmt(it.pf)+' '+it.u:''}`:''],
+    ['Origin',it.o],['Buyer',it.by],['Component type',it.ct],['Group',it.g],['Sub group',it.sg],['Remark',it.rm],
+    ['Master link',it.mc&&it.mc!=='RMT'?'Matched by '+it.mc+(it.mr?' → '+it.mr:''):it.mc?'':'Not in component master']].filter(x=>x[1]);
+  const locs=LOCS.map(([l,n])=>{const cc=cnt(it._k,l);return `<div class="${l===S.loc?'cur':''}">${esc(n)}<b>${fmt(sys(it,l))}</b>${cc?`<i>counted ${fmt(cc.q)}</i>`:''}</div>`}).join('');
+  const pf=it.pf&&it.pf>1?it.pf:0;
+  const lines=c?c.lines.slice().sort((a,b)=>a.at.localeCompare(b.at)).map(l=>`<div><span><b>${fmt(l.q)}</b> ${esc(it.u)}${l.note?' · '+esc(l.note):''}<br><small class="meta">${esc(l.by)} · ${esc(new Date(l.at).toLocaleString('en-GB',{dateStyle:'short',timeStyle:'short'}))}${l.pending?' · <b style="color:var(--warn)">waiting to upload</b>':''}</small></span>${S.canWrite&&(l.by===S.who||l.pending)?`<button data-del="${esc(l.id)}">Remove</button>`:''}</div>`).join(''):'';
+  $('#sheet').innerHTML=`<div class="shd"><div><h2>${esc(it.d)}</h2><small>${esc(it.dp)} › ${esc(it.g)} › ${esc(it.sg)}</small><div style="margin-top:6px"><span class="tag ${it.st==='Inactive'?'inact':'act'}" style="background:#fff">${it.st==='Inactive'?'Inactive item':'Active item'}</span></div></div><button class="x" id="xclose" aria-label="Close">×</button></div>
+  <div class="sb">
+    <div style="display:grid;gap:12px;align-content:start">${(it.iu||it.im)?`<div class="pic">${imgTag(it,it.d)}</div>`:`<div class="pic">${initials(it.d)}</div>`}
+      <div><div class="meta" style="margin-bottom:6px">Oct’26 SOH by location · total <b>${fmt(it.q)} ${esc(it.u)}</b></div><div class="locs">${locs}</div></div></div>
+    <div style="display:grid;gap:14px;align-content:start">
+      <div class="countbox">
+        <div class="big"><div><span>System · ${esc(LN[S.loc])}</span><b>${fmt(sq)}</b></div><div><span>Counted</span><b>${c?fmt(cq):'—'}</b></div><div><span>Variance</span><b style="color:${!c?'inherit':cq-sq<0?'var(--acc)':cq-sq>0?'var(--ok)':'inherit'}">${c?sgn(cq-sq):'—'}</b></div></div>
+        ${S.canWrite?`${S.who?'':'<div class="warnbar">Type your name in “Counter name” at the top so counts are traceable.</div>'}
+        <form id="cform" class="qrow" autocomplete="off">
+          <button type="button" class="btn step" data-step="-1" aria-label="Minus one">−</button>
+          <input id="qty" inputmode="decimal" placeholder="Qty" aria-label="Quantity counted">
+          <button type="button" class="btn step" data-step="1" aria-label="Plus one">+</button>
+          ${pf?`<select id="unit" class="btn" aria-label="Unit"><option value="base">${esc(it.u)}</option><option value="pu">${esc(it.pu)} (×${fmt(pf)})</option></select>`:''}
+          <input id="note" class="note" placeholder="Bin / shelf / note (optional)" maxlength="80">
+          <button class="btn pri" type="submit" style="flex:1 1 140px">Save count</button>
+          <button class="btn" type="button" id="saveadd" style="flex:1 1 140px">Save &amp; count another bin</button>
+          <button class="btn" type="button" id="zero" title="Nothing found at this location">None found (0)</button>
+        </form>
+        <div class="meta">Each save adds a line; lines add up. Several people can count the same item in different bins.</div>`:'<div class="warnbar">You can view counts but not add them. Ask the owner for Contributor access.</div>'}
+        ${lines?`<div class="lines">${lines}</div>`:''}
+      </div>
+      <div class="kv">${kv.map(([k,v])=>`<div><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join('')}</div>
+    </div>
+  </div>`;
+  hydrate($('#sheet'));
+  if(keep){if($('#qty'))$('#qty').value=keep.q||'';if($('#note'))$('#note').value=keep.n||''}
+}
+async function submitCount(stay,forceZero){
+  const it=S.by.get(S.cur);if(!it)return;
+  let q=forceZero?0:parseFloat(String($('#qty').value).replace(/,/g,''));
+  if(!forceZero&&(!isFinite(q))){$('#qty').focus();toast('Enter a quantity');return}
+  const u=$('#unit')?.value;if(u==='pu')q=q*it.pf;
+  const l={key:it._k,loc:S.loc,q:Math.round(q*1000)/1000,note:($('#note')?.value||'').trim()};
+  if(it._new){l.nd=it.d;l.nc=it.k;l.nu=it.u}
+  try{await store.add(l);toast(`Saved ${fmt(l.q)} ${it.u} · ${LN[S.loc]}`);
+    if(stay){$('#qty').value='';$('#note').value='';$('#qty').focus()}else close()}
+  catch(e){if(e&&e.code==='invalid_argument'){S.canWrite=false;renderSheet()}toast(e&&e.code==='quota_exceeded'?'Storage full — export and start a new session':'Could not save — try again')}
+}
+
+/* ---------- new (unlisted) item ---------- */
+function newItemForm(pre){
+  S.cur=null;$('#ov').classList.add('open');
+  $('#sheet').innerHTML=`<div class="shd"><div><h2>Item not in the list</h2><small>Found on the floor but missing from the Floral Master</small></div><button class="x" id="xclose" aria-label="Close">×</button></div>
+  <form id="nform" class="sb" style="grid-template-columns:1fr"><div class="qrow"><input class="note" id="nc" placeholder="Code on the item (SKU / barcode)" value="${esc(pre||'')}"><input class="note" id="nd" placeholder="Description" required></div>
+  <div class="qrow"><input class="note" id="nu" placeholder="UOM (e.g. PCS)" value="PCS"><input id="nq" inputmode="decimal" placeholder="Qty"><input class="note" id="nn" placeholder="Bin / note"></div>
+  <div class="qrow"><button class="btn pri" type="submit">Save to ${esc(LN[S.loc])}</button></div></form>`;
+  $('#nd').focus();
+}
+async function saveNew(){
+  const d=$('#nd').value.trim(),k=$('#nc').value.trim(),q=parseFloat($('#nq').value);
+  if(!d||!isFinite(q)){toast('Description and qty are needed');return}
+  const key=safe('NEW-'+(k||d));
+  try{await store.add({key,loc:S.loc,q,note:$('#nn').value.trim(),nd:d,nc:k,nu:$('#nu').value.trim()||'PCS'});toast('Saved new item');$('#ov').classList.remove('open')}catch(e){toast('Could not save')}
+}
+const newItems=()=>{const m=new Map();for(const l of S.lines)if(l.nd&&!S.by.has(l.key))m.set(l.key,{_k:l.key,_new:1,d:l.nd,k:l.nc||'',r:'',c:'',u:l.nu||'',dp:'Not in master',g:'',sg:'',l:{},q:0,uc:0});return [...m.values()]};
+
+/* ---------- progress ---------- */
+function renderProg(){
+  const loc=S.loc,its=S.items;
+  let stocked=0,done=0,extra=0,match=0,short=0,over=0;const dep=new Map(),vars=[];
+  for(const it of its){const s=sys(it,loc),c=cnt(it._k,loc);const d=dep.get(it.dp)||{n:0,c:0,v:0};
+    if(s>0){stocked++;d.n++}
+    if(c){if(s>0){done++;d.c++}else extra++;const df=c.q-s;if(Math.abs(df)>1e-9){vars.push([it,c.q,s,df]);d.v++;df<0?short++:over++}else match++}
+    dep.set(it.dp,d)}
+  const ni=newItems().filter(n=>cnt(n._k,loc));
+  const pct=stocked?done/stocked*100:0;vars.sort((a,b)=>Math.abs(b[3])-Math.abs(a[3]));
+  const people=new Map();for(const l of S.lines)if(l.loc===loc)people.set(l.by,(people.get(l.by)||0)+1);
+  const allLoc=LOCS.map(([l,n])=>{let st=0,dn=0;for(const it of its){const s=sys(it,l),c=cnt(it._k,l);if(s>0)st++;if(c&&s>0)dn++}return [l,n,st,dn]});
+  $('#v-prog').innerHTML=`<h2 style="font-size:26px;margin:6px 0 2px">${esc(LN[loc])}: ${fmt(pct,1)}% of stocked items counted</h2>
+  <div class="meta">Counting date ${esc(niceDate(S.sess))} · counts from the whole team</div>
+  <div class="bar"><i style="width:${pct.toFixed(1)}%"></i></div>
+  <div class="kpis"><div class="kpi"><span>Items counted</span><b>${fmt(done,0)} / ${fmt(stocked,0)}</b></div>
+  <div class="kpi"><span>Matched system</span><b style="color:var(--ok)">${fmt(match,0)}</b></div>
+  <div class="kpi"><span>Short</span><b style="color:var(--acc)">${fmt(short,0)}</b></div>
+  <div class="kpi"><span>Over</span><b>${fmt(over,0)}</b></div>
+  <div class="kpi"><span>Found, no system stock</span><b>${fmt(extra+ni.length,0)}</b></div></div>
+  <div class="card"><h3>By department</h3><div class="scroll"><table class="stack"><thead><tr><th>Department</th><th>Progress</th><th class="n">Differences</th></tr></thead><tbody>
+  ${[...dep].filter(([,d])=>d.n||d.c).sort((a,b)=>b[1].n-a[1].n).map(([k,d])=>`<tr><td>${esc(k)}</td><td><span class="mini"><i style="width:${d.n?d.c/d.n*100:0}%"></i></span>${d.c}/${d.n}</td><td class="n">${d.v}</td></tr>`).join('')}</tbody></table></div></div>
+  <div class="card"><h3>Largest differences</h3>${vars.length?`<div class="scroll"><table class="stack"><thead><tr><th>Item</th><th class="n">System</th><th class="n">Counted</th><th class="n">Diff</th></tr></thead><tbody>
+  ${vars.slice(0,25).map(([it,c,s,v])=>`<tr class="click" data-k="${esc(it._k)}"><td>${esc(it.d)}<br><small class="meta">${esc(it.k||it.r)}</small></td><td class="n">${fmt(s)}</td><td class="n">${fmt(c)}</td><td class="n ${v<0?'neg':'pos'}">${sgn(v)}</td></tr>`).join('')}</tbody></table></div>`:'<p class="meta">No differences yet.</p>'}</div>
+  ${ni.length?`<div class="card"><h3>Items not in master</h3><table class="stack"><thead><tr><th>Code</th><th>Description</th><th class="n">Counted</th></tr></thead><tbody>${ni.map(n=>`<tr><td>${esc(n.k||'—')}</td><td>${esc(n.d)}</td><td class="n">${fmt(cnt(n._k,loc).q)} ${esc(n.u)}</td></tr>`).join('')}</tbody></table></div>`:''}
+  <div class="card"><h3>All locations</h3><div class="scroll"><table class="stack"><thead><tr><th>Location</th><th>Progress</th></tr></thead><tbody>
+  ${allLoc.map(([l,n,st,dn])=>`<tr><td>${esc(n)}</td><td><span class="mini"><i style="width:${st?dn/st*100:0}%"></i></span>${dn}/${st}</td></tr>`).join('')}</tbody></table></div></div>
+  <div class="card"><h3>Counters at ${esc(LN[loc])}</h3>${people.size?[...people].sort((a,b)=>b[1]-a[1]).map(([p,n])=>`<span class="tag todo" style="margin:3px">${esc(p)} · ${n} lines</span>`).join(''):'<p class="meta">No counts yet.</p>'}</div>`;
+}
+
+/* ---------- export ---------- */
+function exportRows(){
+  const all=document.querySelector('input[name=scope]:checked').value==='all',incl=$('#incl').checked;
+  const locs=all?LOCS.map(x=>x[0]):[S.loc],rows=[];
+  for(const l of locs){for(const it of [...S.items,...newItems()]){const s=sys(it,l),c=cnt(it._k,l);if(!c&&!(incl&&s>0))continue;
+    rows.push({'Counting Date':S.sess,'Location':LN[l],'Location Code':LCODE[l],'Item Status':it.st||'','RMT Code':it.r,'SKU (stock take)':it.k,'SKU (master)':it.ms||'','CID':it.c,'Description':it.d,'Department':it.dp,'Group':it.g,'Sub Group':it.sg,'UOM':it.u,
+"System Qty (Oct'26 SOH)":s,'Counted Qty':c?c.q:'','Variance Qty':c?Math.round((c.q-s)*1000)/1000:'',
+      'Count Lines':c?c.n:0,'Counted By':c?[...c.who].join(', '):'','Last Counted':c?c.last:'','Notes':c?c.lines.map(x=>x.note).filter(Boolean).join(' | '):''})}}
+  return rows;
+}
+function auditRows(){const all=document.querySelector('input[name=scope]:checked').value==='all';return S.lines.filter(l=>all||l.loc===S.loc).sort((a,b)=>a.at.localeCompare(b.at)).map(l=>{const it=S.by.get(l.key)||{};return {'Counting Date':l.ss,'Time':l.at,'Location':LN[l.loc],'Counter':l.by,'RMT Code':it.r||'','SKU':it.k||l.nc||'','Description':it.d||l.nd||'','Qty':l.q,'UOM':it.u||l.nu||'','Note':l.note||''}})}
+const toDelim=(rows,d)=>{if(!rows.length)return '';const h=Object.keys(rows[0]);const f=v=>{v=String(v??'');return d===','&&/[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v.replace(/[\t\n]/g,' ')};return [h.join(d),...rows.map(r=>h.map(k=>f(r[k])).join(d))].join('\n')};
+const fname=ext=>`StockCount_${safe(S.sess)}_${document.querySelector('input[name=scope]:checked').value==='all'?'ALL':S.loc}_${new Date().toISOString().slice(0,10)}.${ext}`;
+function loadXLSX(){return window.XLSX?Promise.resolve():new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';s.onload=res;s.onerror=rej;document.head.appendChild(s)})}
+async function save(filename,data){if(!S.downloads){try{const blob=data instanceof Blob?data:new Blob([data],{type:filename.endsWith('.csv')?'text/csv':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=filename;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},2000);toast('Downloading '+filename)}catch(e){toast('Download failed — use Copy for Excel')}return}
+  try{await S.downloads.save({filename,data});toast('Saved '+filename)}catch(e){toast(e&&e.code==='declined'?'Download cancelled':'Download failed — use Copy for Excel')}}
+
+/* ---------- events ---------- */
+let qT;$('#q').addEventListener('input',e=>{clearTimeout(qT);qT=setTimeout(()=>{S.q=e.target.value;S.limit=60;renderList()},120)});
+$('#q').addEventListener('keydown',e=>{if(e.key!=='Enter')return;e.preventDefault();S.q=e.target.value;const q=S.q.trim().toLowerCase();if(!q)return;
+  const ex=S.items.filter(i=>i._codes.includes(q));const arr=ex.length?ex:filtered();if(arr.length===1)open(arr[0]._k);else renderList()});
+$('#stat').addEventListener('click',e=>{const b=e.target.closest('[data-s]');if(!b)return;S.status=b.dataset.s;S.limit=60;document.querySelectorAll('#stat .chip').forEach(c=>c.setAttribute('aria-pressed',c===b));renderList()});
+const NONE_G='No group',NONE_S='No sub group';
+const sgOf=i=>(i.sg&&i.sg!=='0')?i.sg:NONE_S;
+const gOf=i=>(i.g&&i.g!=='0')?i.g:NONE_G;
+function opts(set,none,all){const l=[...set].filter(s=>s!==none).sort();if(set.has(none))l.push(none);return `<option value="">${all}</option>`+l.map(k=>`<option value="${esc(k)}">${esc(k)}</option>`).join('')}
+function fillGrp(){const s=new Set();for(const i of S.items)if(!S.dept||i.dp===S.dept)s.add(gOf(i));
+  $('#grp').innerHTML=opts(s,NONE_G,'All groups');if(S.grp&&!s.has(S.grp))S.grp='';$('#grp').value=S.grp}
+function fillSub(){const s=new Set();for(const i of S.items)if((!S.dept||i.dp===S.dept)&&(!S.grp||gOf(i)===S.grp))s.add(sgOf(i));
+  $('#sub').innerHTML=opts(s,NONE_S,'All sub groups');if(S.sub&&!s.has(S.sub))S.sub='';$('#sub').value=S.sub}
+$('#dept').addEventListener('change',e=>{S.dept=e.target.value;S.grp='';S.sub='';fillGrp();fillSub();S.limit=60;renderList()});
+$('#grp').addEventListener('change',e=>{S.grp=e.target.value;S.sub='';fillSub();S.limit=60;renderList()});
+$('#sub').addEventListener('change',e=>{S.sub=e.target.value;S.limit=60;renderList()});
+$('#sort').addEventListener('change',e=>{S.sort=e.target.value;renderList()});
+$('#morebtn').addEventListener('click',()=>{S.limit+=60;renderList()});
+$('#list').addEventListener('click',e=>{const r=e.target.closest('[data-k]');if(r)open(r.dataset.k);if(e.target.id==='newfromq')newItemForm(S.q.trim())});
+$('#v-prog').addEventListener('click',e=>{const r=e.target.closest('[data-k]');if(r)open(r.dataset.k)});
+$('#newbtn').addEventListener('click',()=>newItemForm(''));
+$('#ov').addEventListener('click',e=>{if(e.target.id==='ov'||e.target.id==='xclose')close();
+  const st=e.target.closest('[data-step]');if(st){const i=$('#qty');i.value=Math.max(0,(parseFloat(i.value)||0)+Number(st.dataset.step));i.focus()}
+  if(e.target.id==='saveadd')submitCount(true);if(e.target.id==='zero')submitCount(false,true);
+  const d=e.target.closest('[data-del]');if(d){if(d.dataset.arm){store.del(d.dataset.del).then(()=>toast('Line removed')).catch(()=>toast('Could not remove'))}else{d.dataset.arm=1;d.textContent='Tap again to remove'}}});
+$('#ov').addEventListener('submit',e=>{e.preventDefault();if(e.target.id==='cform')submitCount(false);if(e.target.id==='nform')saveNew()});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('#ov').classList.contains('open'))close()});
+document.addEventListener('error',e=>{const im=e.target;if(im.tagName==='IMG'&&im.dataset.fb){im.dataset.im=im.dataset.fb;im.dataset.ib=im.dataset.fbb;delete im.dataset.fb;im.removeAttribute('src');fill(im);return}if(e.target.tagName==='IMG'){const p=e.target.parentNode;e.target.remove();if(p&&!p.textContent)p.textContent='—'}},true);
+$('#loc').innerHTML=LOCS.map(([v,n,c])=>`<option value="${v}">${esc(n)} (${c})</option>`).join('');$('#loc').value=S.loc;
+$('#loc').addEventListener('change',e=>{S.loc=e.target.value;ls.set('loc',S.loc);rebuild()});
+$('#who').value=S.who;$('#who').addEventListener('change',e=>{S.who=e.target.value.trim();ls.set('who',S.who);if(S.cur)renderSheet()});
+$('#sess').value=S.sess;$('#sess').max=todayISO();$('#sess').addEventListener('change',e=>{const v=e.target.value;if(!/^\d{4}-\d{2}-\d{2}$/.test(v)){e.target.value=S.sess;return}S.sess=v;saveSessionName();store.sub();toast('Showing counts for '+niceDate(v))});
+document.querySelector('nav').addEventListener('click',e=>{const b=e.target.closest('[data-t]');if(!b)return;document.querySelectorAll('nav button').forEach(x=>x.setAttribute('aria-selected',x===b));
+  for(const t of ['count','prog','exp'])$('#v-'+t).hidden=t!==b.dataset.t;if(b.dataset.t==='prog')renderProg()});
+$('#csv').addEventListener('click',()=>{const r=exportRows();if(!r.length)return toast('Nothing to export yet');save(fname('csv'),'﻿'+toDelim(r,','))});
+$('#copy').addEventListener('click',async()=>{const r=exportRows();if(!r.length)return toast('Nothing to export yet');try{await navigator.clipboard.writeText(toDelim(r,'\t'));toast(`Copied ${r.length} rows — paste into Excel`)}catch(e){toast('Copy was blocked by the browser')}});
+$('#xlsx').addEventListener('click',async()=>{const r=exportRows();if(!r.length)return toast('Nothing to export yet');
+  try{await loadXLSX()}catch(e){return toast('Excel library failed to load — use CSV')}
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(r),'Count Summary');const a=auditRows();if(a.length)XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(a),'Count Lines');
+  save(fname('xlsx'),new Uint8Array(XLSX.write(wb,{bookType:'xlsx',type:'array'})))});
+
+/* ---------- boot ---------- */
+fetch('items.json').then(r=>r.json()).then(items=>{
+  for(const it of items){it._k=it.id||keyOf(it);
+    it._codes=[it.r,it.k,it.ms,it.c].filter(Boolean).map(x=>String(x).toLowerCase());it._s=[it.r,it.k,it.ms,it.c,it.d,it.dp,it.g,it.sg].join(' ').toLowerCase();S.by.set(it._k,it)}
+  S.items=items;$('#dept').innerHTML+=[...new Set(items.map(i=>i.dp))].sort().map(d=>`<option>${esc(d)}</option>`).join('');fillGrp();fillSub();rebuild();
+}).catch(()=>{$('#meta').textContent='Could not load the item list. Reload the page.'});
+fillSessions([]);
+S.mode=API?'sheet':'local';store.sub();
+}
+</script>
+</body>
+</html>
