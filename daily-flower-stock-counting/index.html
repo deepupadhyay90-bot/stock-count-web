@@ -53,6 +53,8 @@ main{max-width:1240px;margin:auto;padding:14px max(4vw,14px) 60px}
 .search input{flex:1;border:2px solid var(--brand2);border-radius:14px;padding:12px 14px;font-size:18px;background:var(--card);min-height:52px}
 .btn{border:1px solid var(--line);background:var(--card);border-radius:12px;padding:10px 14px;min-height:44px;font-weight:600}
 .btn.pri{background:var(--brand2);border-color:var(--brand2);color:#fff}.btn.acc{background:var(--acc);border-color:var(--acc);color:#fff}
+.btn.ded{border-color:var(--acc);color:var(--acc);flex:1 1 140px}
+.lines .neg b{color:var(--acc)}
 .btn:disabled{opacity:.45;cursor:not-allowed}
 .filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .ms{position:relative}
@@ -441,7 +443,7 @@ function renderSheet(first){
     ['Master link',it.mc&&it.mc!=='RMT'?'Matched by '+it.mc+(it.mr?' → '+it.mr:''):it.mc?'':'Not in component master']].filter(x=>x[1]);
   let tot=0;const locs=LOCS.map(([l,n])=>{const cc=cnt(it._k,l),pl=prev(it._k,l);if(cc)tot+=cc.q;return `<div class="${l===S.loc?'cur':''}">${esc(n)}<b>${cc?fmt(cc.q):'—'}</b>${pl?`<i style="color:var(--mute)">last ${esc(shortDate(pl.date))}: ${fmt(pl.q)}</i>`:''}</div>`}).join('');
   const pf=it.pf&&it.pf>1?it.pf:0;
-  const lines=c?c.lines.slice().sort((a,b)=>a.at.localeCompare(b.at)).map(l=>`<div><span><b>${fmt(l.q)}</b> ${esc(it.u)}${l.note?' · '+esc(l.note):''}<br><small class="meta">${esc(l.by)} · ${esc(new Date(l.at).toLocaleString('en-GB',{dateStyle:'short',timeStyle:'short'}))}${l.pending?' · <b style="color:var(--warn)">waiting to upload</b>':''}</small></span>${S.canWrite&&(l.by===S.who||l.pending)?`<button data-del="${esc(l.id)}">Remove</button>`:''}</div>`).join(''):'';
+  const lines=c?c.lines.slice().sort((a,b)=>a.at.localeCompare(b.at)).map(l=>`<div class="${l.q<0?'neg':''}"><span><b>${l.q<0?'−'+fmt(-l.q):fmt(l.q)}</b> ${esc(it.u)}${l.q<0?' deducted':''}${l.note?' · '+esc(l.note):''}<br><small class="meta">${esc(l.by)} · ${esc(new Date(l.at).toLocaleString('en-GB',{dateStyle:'short',timeStyle:'short'}))}${l.pending?' · <b style="color:var(--warn)">waiting to upload</b>':''}</small></span>${S.canWrite&&(l.by===S.who||l.pending)?`<button data-del="${esc(l.id)}">Remove</button>`:''}</div>`).join(''):'';
   $('#sheet').innerHTML=`<div class="shd"><div><h2>${esc(it.d)}</h2><small>${esc(it.dp)} › ${esc(it.g)} › ${esc(it.sg)}</small><div style="margin-top:6px"><span class="tag ${it.st==='Inactive'?'inact':'act'}" style="background:#fff">${it.st==='Inactive'?'Inactive item':'Active item'}</span></div></div><button class="x" id="xclose" aria-label="Close">×</button></div>
   <div class="sb">
     <div style="display:grid;gap:12px;align-content:start">${(it.iu||it.im)?`<div class="pic">${imgTag(it,it.d)}</div>`:`<div class="pic">${initials(it.d)}</div>`}
@@ -459,8 +461,9 @@ function renderSheet(first){
           <button class="btn pri" type="submit" style="flex:1 1 140px">Save count</button>
           <button class="btn" type="button" id="saveadd" style="flex:1 1 140px">Save &amp; count another bin</button>
           <button class="btn" type="button" id="zero" title="Nothing found at this location">None found (0)</button>
+          <button class="btn ded" type="button" id="deduct" title="Take this quantity off the count (wrong entry)">− Deduct qty</button>
         </form>
-        <div class="meta">Each save adds a line; lines add up. Several people can count the same item in different bins.</div>`:'<div class="warnbar">You can view counts but not add them. Ask the owner for Contributor access.</div>'}
+        <div class="meta">Each save adds a line and lines add up, so several people can count different bins. Entered too much? Type the extra qty and tap <b>− Deduct qty</b>.</div>`:'<div class="warnbar">You can view counts but not add them. Ask the owner for Contributor access.</div>'}
         ${lines?`<div class="lines">${lines}</div>`:''}
       </div>
       <div class="kv">${kv.map(([k,v])=>`<div><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join('')}</div>
@@ -469,14 +472,19 @@ function renderSheet(first){
   hydrate($('#sheet'));
   if(keep){if($('#qty'))$('#qty').value=keep.q||'';if($('#note'))$('#note').value=keep.n||''}
 }
-async function submitCount(stay,forceZero){
+async function submitCount(stay,forceZero,deduct){
   const it=S.by.get(S.cur);if(!it)return;
   let q=forceZero?0:parseFloat(String($('#qty').value).replace(/,/g,''));
   if(!forceZero&&(!isFinite(q))){$('#qty').focus();toast('Enter a quantity');return}
   const u=$('#unit')?.value;if(u==='pu')q=q*it.pf;
+  if(deduct){q=-Math.abs(q);const have=(cnt(it._k)||{q:0}).q;
+    if(!q){toast('Enter the quantity to deduct');$('#qty').focus();return}
+    if(have+q<-1e-9){toast(`Can't deduct ${fmt(-q)}: only ${fmt(have)} counted here today`);$('#qty').focus();return}
+    if(!($('#note').value||'').trim())$('#note').value='Correction: wrong entry';}
+  else if(q<0){toast('Use “Deduct qty” to take quantity off');$('#qty').focus();return}
   const l={key:it._k,loc:S.loc,q:Math.round(q*1000)/1000,note:($('#note')?.value||'').trim()};
   if(it._new){l.nd=it.d;l.nc=it.k;l.nu=it.u}
-  try{await store.add(l);toast(`Saved ${fmt(l.q)} ${it.u} · ${LN[S.loc]}`);
+  try{await store.add(l);toast(l.q<0?`Deducted ${fmt(-l.q)} ${it.u} · now ${fmt((cnt(it._k)||{q:0}).q)}`:`Saved ${fmt(l.q)} ${it.u} · ${LN[S.loc]}`);
     if(stay){$('#qty').value='';$('#note').value='';$('#qty').focus()}else close()}
   catch(e){if(e&&e.code==='invalid_argument'){S.canWrite=false;renderSheet()}toast(e&&e.code==='quota_exceeded'?'Storage full — export and start a new session':'Could not save — try again')}
 }
@@ -596,7 +604,7 @@ $('#v-prog').addEventListener('click',e=>{const r=e.target.closest('[data-k]');i
 $('#newbtn').addEventListener('click',()=>newItemForm(''));
 $('#ov').addEventListener('click',e=>{if(e.target.id==='ov'||e.target.id==='xclose')close();
   const st=e.target.closest('[data-step]');if(st){const i=$('#qty');i.value=Math.max(0,(parseFloat(i.value)||0)+Number(st.dataset.step));i.focus()}
-  if(e.target.id==='saveadd')submitCount(true);if(e.target.id==='zero')submitCount(false,true);
+  if(e.target.id==='saveadd')submitCount(true);if(e.target.id==='zero')submitCount(false,true);if(e.target.id==='deduct')submitCount(true,false,true);
   const d=e.target.closest('[data-del]');if(d){if(d.dataset.arm){store.del(d.dataset.del).then(()=>toast('Line removed')).catch(()=>toast('Could not remove'))}else{d.dataset.arm=1;d.textContent='Tap again to remove'}}});
 $('#ov').addEventListener('submit',e=>{e.preventDefault();if(e.target.id==='cform')submitCount(false);if(e.target.id==='nform')saveNew()});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('#ov').classList.contains('open'))close()});
