@@ -55,6 +55,21 @@ main{max-width:1240px;margin:auto;padding:14px max(4vw,14px) 60px}
 .btn.pri{background:var(--brand2);border-color:var(--brand2);color:#fff}.btn.acc{background:var(--acc);border-color:var(--acc);color:#fff}
 .btn:disabled{opacity:.45;cursor:not-allowed}
 .filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.ms{position:relative}
+.msb{width:100%;min-width:150px;min-height:44px;text-align:left;border:1px solid var(--line);background:var(--card);border-radius:10px;padding:8px 30px 8px 10px;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;position:relative;color:var(--ink);font-weight:500}
+.msb::after{content:'';position:absolute;right:12px;top:50%;width:7px;height:7px;border-right:2px solid var(--mute);border-bottom:2px solid var(--mute);transform:translateY(-70%) rotate(45deg)}
+.msb.on{border-color:var(--brand2);background:var(--soft);font-weight:700;color:var(--brand2)}
+.msp{position:absolute;z-index:30;top:calc(100% + 4px);left:0;width:max(100%,280px);max-width:92vw;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 32px #0003;padding:8px;display:grid;gap:6px}
+.msp input[type=search]{border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:16px;background:var(--bg)}
+.msl{max-height:min(52vh,360px);overflow:auto;display:grid}
+.msl label{display:flex;gap:10px;align-items:center;min-height:42px;padding:2px 6px;border-radius:8px;font-size:15px;color:var(--ink);font-weight:500;cursor:pointer}
+.msl label:hover{background:var(--soft)}
+.msl input{width:20px;height:20px;accent-color:var(--brand2);flex:none}
+.msl small{margin-left:auto;color:var(--mute);font-size:12px}
+.msa{display:flex;gap:6px;justify-content:space-between}
+.msa button{border:0;background:none;color:var(--brand2);font-weight:700;min-height:40px;padding:0 8px;font-size:14px}
+.msa .done{background:var(--brand2);color:#fff;border-radius:8px;padding:0 16px}
+@media(max-width:600px){.msp{position:fixed;left:3vw;right:3vw;top:auto;bottom:10px;width:auto;max-width:none;box-shadow:0 -6px 40px #0006}.msl{max-height:55vh}}
 .fl{display:flex;flex-direction:column;gap:2px;font-size:12px;color:var(--mute);font-weight:600}
 .filters select{max-width:100%;border:1px solid var(--line);background:var(--card);border-radius:10px;padding:8px;min-height:44px;font-size:16px}
 .chips{display:flex;gap:6px;flex-wrap:wrap}
@@ -169,9 +184,9 @@ table{font-size:13px}.stack thead{display:none}.stack tr{display:grid;padding-bl
       </div>
       <div class="filters">
         <div class="chips" id="stat"></div>
-        <label class="fl"><span>Department</span><select id="dept"><option value="">All departments</option></select></label>
-        <label class="fl"><span>Department group</span><select id="grp"><option value="">All groups</option></select></label>
-        <label class="fl"><span>Sub group</span><select id="sub"><option value="">All sub groups</option></select></label>
+        <div class="fl"><span>Department</span><div class="ms" id="dept" data-all="All departments"><button type="button" class="msb" aria-haspopup="true" aria-expanded="false">All departments</button><div class="msp" hidden></div></div></div>
+        <div class="fl"><span>Department group</span><div class="ms" id="grp" data-all="All groups"><button type="button" class="msb" aria-haspopup="true" aria-expanded="false">All groups</button><div class="msp" hidden></div></div></div>
+        <div class="fl"><span>Sub group</span><div class="ms" id="sub" data-all="All sub groups"><button type="button" class="msb" aria-haspopup="true" aria-expanded="false">All sub groups</button><div class="msp" hidden></div></div></div>
         <label class="fl"><span>Sort</span><select id="sort"><option value="dept">Sort: department</option><option value="qty">Sort: system qty</option><option value="name">Sort: name A–Z</option><option value="recent">Sort: recently counted</option></select></label>
       </div>
       <div class="meta" id="meta">Loading items…</div>
@@ -219,7 +234,7 @@ const initials=d=>esc((d||'?').split(/\s+/).slice(0,2).map(w=>w[0]||'').join('')
 
 const todayISO=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
 const niceDate=s=>{const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(s||'');return m?new Date(+m[1],m[2]-1,+m[3]).toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric'}):s};
-const S={items:[],by:new Map(),loc:ls.get('loc','DXB'),sess:todayISO(),who:ls.get('who',''),q:'',dept:'',grp:'',sub:'',status:'todo',sort:'dept',limit:60,
+const S={items:[],by:new Map(),loc:ls.get('loc','DXB'),sess:todayISO(),who:ls.get('who',''),q:'',dept:new Set(),grp:new Set(),sub:new Set(),status:'todo',sort:'dept',limit:60,
   lines:[],server:[],lastPull:0,agg:new Map(),db:null,mode:'loading',canWrite:true,unsub:null,cur:null,uid:null,downloads:null};
 
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('on'),1800)}
@@ -346,7 +361,7 @@ const STATS=[['todo','To count'],['counted','Counted'],['var','Variance'],['all'
 $('#stat').innerHTML=STATS.map(([v,t])=>`<button class="chip" data-s="${v}" aria-pressed="${v===S.status}">${t}</button>`).join('');
 function filtered(){
   const q=S.q.trim().toLowerCase();let arr=S.items;
-  if(S.dept)arr=arr.filter(i=>i.dp===S.dept);if(S.grp)arr=arr.filter(i=>gOf(i)===S.grp);if(S.sub)arr=arr.filter(i=>sgOf(i)===S.sub);
+  if(S.dept.size)arr=arr.filter(i=>S.dept.has(i.dp));if(S.grp.size)arr=arr.filter(i=>S.grp.has(gOf(i)));if(S.sub.size)arr=arr.filter(i=>S.sub.has(sgOf(i)));
   if(q){
     const toks=q.split(/\s+/);
     arr=arr.filter(i=>toks.every(t=>i._s.includes(t)));
@@ -373,11 +388,11 @@ function rowHTML(it){
 }
 function renderList(){
   if(!S.items.length)return;
-  const arr=filtered(),shown=arr.slice(0,S.limit);
+  const arr=filtered(),lim=(S.dept.size||S.grp.size||S.sub.size)?Math.max(S.limit,1500):S.limit,shown=arr.slice(0,lim);
   const withStock=S.items.filter(i=>sys(i)>0).length,counted=S.items.filter(i=>cnt(i._k)).length;
   $('#meta').textContent=(S.q?`${arr.length} matches across all items`:`${arr.length} items`)+` · ${LN[S.loc]}: ${counted} of ${withStock} stocked items counted`;
   $('#list').innerHTML=shown.length?shown.map(rowHTML).join(''):`<div class="empty">No items match.${S.q?' <br><br><button class="btn acc" id="newfromq">Record “'+esc(S.q)+'” as an item not in the list</button>':''}</div>`;
-  hydrate($('#list'));$('#morebtn').hidden=arr.length<=S.limit;$('#morebtn').textContent=`Show more (${arr.length-S.limit} left)`;
+  hydrate($('#list'));$('#morebtn').hidden=arr.length<=lim;$('#morebtn').textContent=`Show more (${arr.length-lim} left)`;
 }
 
 /* ---------- item sheet ---------- */
@@ -504,14 +519,42 @@ $('#stat').addEventListener('click',e=>{const b=e.target.closest('[data-s]');if(
 const NONE_G='No group',NONE_S='No sub group';
 const sgOf=i=>(i.sg&&i.sg!=='0')?i.sg:NONE_S;
 const gOf=i=>(i.g&&i.g!=='0')?i.g:NONE_G;
-function opts(set,none,all){const l=[...set].filter(s=>s!==none).sort();if(set.has(none))l.push(none);return `<option value="">${all}</option>`+l.map(k=>`<option value="${esc(k)}">${esc(k)}</option>`).join('')}
-function fillGrp(){const s=new Set();for(const i of S.items)if(!S.dept||i.dp===S.dept)s.add(gOf(i));
-  $('#grp').innerHTML=opts(s,NONE_G,'All groups');if(S.grp&&!s.has(S.grp))S.grp='';$('#grp').value=S.grp}
-function fillSub(){const s=new Set();for(const i of S.items)if((!S.dept||i.dp===S.dept)&&(!S.grp||gOf(i)===S.grp))s.add(sgOf(i));
-  $('#sub').innerHTML=opts(s,NONE_S,'All sub groups');if(S.sub&&!s.has(S.sub))S.sub='';$('#sub').value=S.sub}
-$('#dept').addEventListener('change',e=>{S.dept=e.target.value;S.grp='';S.sub='';fillGrp();fillSub();S.limit=60;renderList()});
-$('#grp').addEventListener('change',e=>{S.grp=e.target.value;S.sub='';fillSub();S.limit=60;renderList()});
-$('#sub').addEventListener('change',e=>{S.sub=e.target.value;S.limit=60;renderList()});
+function sortOpts(set,none){const l=[...set].filter(s=>s!==none).sort();if(set.has(none))l.push(none);return l}
+/* available options follow the levels above: groups of the chosen departments, sub groups of the chosen groups */
+function avail(level){const m=new Map();
+  for(const i of S.items){
+    if(level!=='dept'&&S.dept.size&&!S.dept.has(i.dp))continue;
+    if(level==='sub'&&S.grp.size&&!S.grp.has(gOf(i)))continue;
+    const k=level==='dept'?i.dp:level==='grp'?gOf(i):sgOf(i);m.set(k,(m.get(k)||0)+1)}
+  return m}
+function msLabel(id){const set=S[id],box=$('#'+id),b=box.querySelector('.msb');
+  b.textContent=!set.size?box.dataset.all:set.size===1?[...set][0]:`${set.size} selected`;b.classList.toggle('on',set.size>0)}
+function prune(){for(const lv of ['grp','sub']){const a=avail(lv);for(const k of [...S[lv]])if(!a.has(k))S[lv].delete(k)}for(const id of ['dept','grp','sub'])msLabel(id)}
+function fillGrp(){prune()}function fillSub(){prune()}
+function msOpen(id){
+  document.querySelectorAll('.msp').forEach(x=>{if(x.parentNode.id!==id){x.hidden=true;x.previousElementSibling.setAttribute('aria-expanded','false')}});
+  const box=$('#'+id),p=box.querySelector('.msp'),a=avail(id),none=id==='grp'?NONE_G:id==='sub'?NONE_S:'';
+  const list=sortOpts(new Set(a.keys()),none);
+  p.innerHTML=`<b style="padding:2px 6px;font-size:15px">${esc(box.parentNode.querySelector('span').textContent)} · tick one or more</b>${list.length>10?'<input type="search" placeholder="Search…" aria-label="Search options">':''}<div class="msl">${list.map(k=>`<label><input type="checkbox" value="${esc(k)}" ${S[id].has(k)?'checked':''}><span>${esc(k)}</span><small>${a.get(k)}</small></label>`).join('')||'<span class="meta" style="padding:8px">Nothing to choose</span>'}</div>
+  <div class="msa"><button type="button" data-a="all">Select all</button><button type="button" data-a="clear">Clear</button><button type="button" class="done" data-a="done">Done</button></div>`;
+  p.hidden=false;box.querySelector('.msb').setAttribute('aria-expanded','true');
+}
+function msClose(){document.querySelectorAll('.msp').forEach(x=>{x.hidden=true;x.previousElementSibling.setAttribute('aria-expanded','false')})}
+function msChanged(){prune();S.limit=60;renderList()}
+for(const id of ['dept','grp','sub']){
+  const box=$('#'+id);
+  box.querySelector('.msb').addEventListener('click',()=>{const p=box.querySelector('.msp');if(p.hidden)msOpen(id);else msClose()});
+  box.querySelector('.msp').addEventListener('change',e=>{const c=e.target;if(c.type!=='checkbox')return;c.checked?S[id].add(c.value):S[id].delete(c.value);msChanged()});
+  box.querySelector('.msp').addEventListener('input',e=>{if(e.target.type!=='search')return;const q=e.target.value.toLowerCase();box.querySelectorAll('.msl label').forEach(l=>l.hidden=!l.textContent.toLowerCase().includes(q))});
+  box.querySelector('.msp').addEventListener('click',e=>{const a=e.target.closest('[data-a]');if(!a)return;
+    if(a.dataset.a==='done'){msClose();return}
+    const boxes=[...box.querySelectorAll('.msl label:not([hidden]) input')];
+    if(a.dataset.a==='all')boxes.forEach(c=>{c.checked=true;S[id].add(c.value)});else{boxes.forEach(c=>c.checked=false);S[id].clear()}
+    msChanged()});
+}
+document.addEventListener('click',e=>{if(!e.target.closest('.ms'))msClose()});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')msClose()});
+
 $('#sort').addEventListener('change',e=>{S.sort=e.target.value;renderList()});
 $('#morebtn').addEventListener('click',()=>{S.limit+=60;renderList()});
 $('#list').addEventListener('click',e=>{const r=e.target.closest('[data-k]');if(r)open(r.dataset.k);if(e.target.id==='newfromq')newItemForm(S.q.trim())});
@@ -541,7 +584,7 @@ $('#xlsx').addEventListener('click',async()=>{const r=exportRows();if(!r.length)
 fetch('items.json').then(r=>r.json()).then(items=>{
   for(const it of items){it._k=it.id||keyOf(it);
     it._codes=[it.r,it.k,it.ms,it.c].filter(Boolean).map(x=>String(x).toLowerCase());it._s=[it.r,it.k,it.ms,it.c,it.d,it.dp,it.g,it.sg].join(' ').toLowerCase();S.by.set(it._k,it)}
-  S.items=items;$('#dept').innerHTML+=[...new Set(items.map(i=>i.dp))].sort().map(d=>`<option>${esc(d)}</option>`).join('');fillGrp();fillSub();rebuild();
+  S.items=items;prune();rebuild();
 }).catch(()=>{$('#meta').textContent='Could not load the item list. Reload the page.'});
 fillSessions([]);
 S.mode=API?'sheet':'local';store.sub();
