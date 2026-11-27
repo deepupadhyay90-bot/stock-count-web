@@ -3,14 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Daily Flower Stock Counting</title>
+<title>Daily Cycle Count</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#0f3d2e">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" href="icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Flower Count">
+<meta name="apple-mobile-web-app-title" content="Daily Cycle Count">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="robots" content="noindex,nofollow">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -165,7 +165,7 @@ table{font-size:13px}.stack thead{display:none}.stack tr{display:grid;padding-bl
 <body>
 <header>
   <div class="top">
-    <h1>Daily Flower Stock Counting<small>Floral Master · daily counts by location</small></h1>
+    <h1>Daily Cycle Count<small>Floral Master · daily counts by location</small></h1>
     <div class="ctl">
       <label>Location<select id="loc"></select></label>
       <label>Counting date<input id="sess" type="date" required style="width:170px"></label>
@@ -365,7 +365,7 @@ window.addEventListener('appinstalled',()=>{instEvt=null;showInst();toast('Insta
 $('#instbtn').addEventListener('click',async()=>{
   if(instEvt){instEvt.prompt();try{await instEvt.userChoice}catch(e){}instEvt=null;showInst();return}
   S.cur=null;$('#ov').classList.add('open');
-  $('#sheet').innerHTML=`<div class="shd"><div><h2>Install Daily Flower Stock Counting</h2><small>Free · no app store needed · works offline</small></div><button class="x" id="xclose" aria-label="Close">×</button></div>
+  $('#sheet').innerHTML=`<div class="shd"><div><h2>Install Daily Cycle Count</h2><small>Free · no app store needed · works offline</small></div><button class="x" id="xclose" aria-label="Close">×</button></div>
   <div class="sb" style="grid-template-columns:1fr">${isIOS?`<ol class="steps"><li>Open this page in <b>Safari</b> (not Chrome or another browser).</li><li>Tap the <b>Share</b> button (square with an arrow) at the bottom of the screen.</li><li>Scroll down and tap <b>Add to Home Screen</b>.</li><li>Tap <b>Add</b>. The flower icon appears on your home screen; open the app from there.</li></ol>`
   :`<ol class="steps"><li>Open this page in <b>Chrome</b>.</li><li>Tap the <b>⋮</b> menu at the top-right.</li><li>Tap <b>Install app</b> (or <b>Add to Home screen</b> → <b>Install</b>).</li><li>The flower icon appears with your apps; open it from there.</li></ol>`}
   <p class="meta">Open it once on Wi-Fi so it saves everything for offline use.</p></div>`;
