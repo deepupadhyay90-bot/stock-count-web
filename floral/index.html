@@ -47,6 +47,7 @@ main{max-width:1240px;margin:auto;padding:14px max(4vw,14px) 60px}
 .btn.pri{background:var(--brand2);border-color:var(--brand2);color:#fff}.btn.acc{background:var(--acc);border-color:var(--acc);color:#fff}
 .btn:disabled{opacity:.45;cursor:not-allowed}
 .filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.fl{display:flex;flex-direction:column;gap:2px;font-size:12px;color:var(--mute);font-weight:600}
 .filters select{max-width:100%;border:1px solid var(--line);background:var(--card);border-radius:10px;padding:8px;min-height:44px;font-size:16px}
 .chips{display:flex;gap:6px;flex-wrap:wrap}
 .chip{border:1px solid var(--line);background:var(--card);border-radius:99px;padding:8px 14px;min-height:40px;font-size:14px;font-weight:500}
@@ -82,7 +83,7 @@ img.noimg{display:none}
 .sb{display:grid;gap:16px;padding:16px 18px;grid-template-columns:minmax(0,1fr)}
 @media(min-width:760px){.sb{grid-template-columns:minmax(0,300px) minmax(0,1fr)}}
 @media(max-width:759px){.pic{aspect-ratio:auto;height:170px}}
-@media(max-width:600px){.sbar{position:static}.filters select{flex:1 1 40%}.chip{padding:8px 11px}}
+@media(max-width:600px){.sbar{position:static}.fl{flex:1 1 45%}.fl select{width:100%}.chip{padding:8px 11px}}
 .pic{background:#fff;border-radius:16px;border:1px solid var(--line);aspect-ratio:1;display:grid;place-items:center;overflow:hidden;font:700 48px Outfit;color:var(--brand2)}
 .pic img{width:100%;height:100%;object-fit:contain}
 .kv{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
@@ -160,9 +161,10 @@ table{font-size:13px}.stack thead{display:none}.stack tr{display:grid;padding-bl
       </div>
       <div class="filters">
         <div class="chips" id="stat"></div>
-        <select id="dept"><option value="">All departments</option></select>
-        <select id="grp" aria-label="Department group"><option value="">All groups</option></select>
-        <select id="sort"><option value="dept">Sort: department</option><option value="qty">Sort: system qty</option><option value="name">Sort: name A–Z</option><option value="recent">Sort: recently counted</option></select>
+        <label class="fl"><span>Department</span><select id="dept"><option value="">All departments</option></select></label>
+        <label class="fl"><span>Department group</span><select id="grp"><option value="">All groups</option></select></label>
+        <label class="fl"><span>Sub group</span><select id="sub"><option value="">All sub groups</option></select></label>
+        <label class="fl"><span>Sort</span><select id="sort"><option value="dept">Sort: department</option><option value="qty">Sort: system qty</option><option value="name">Sort: name A–Z</option><option value="recent">Sort: recently counted</option></select></label>
       </div>
       <div class="meta" id="meta">Loading items…</div>
     </div>
@@ -207,7 +209,7 @@ const safe=s=>String(s).replace(/[^A-Za-z0-9_\-.~:@+]/g,'_').slice(0,150)||'x';
 const keyOf=it=>safe(it.r&&it.r!=='-'?it.r:'CID-'+(it.c||it.d));
 const initials=d=>esc((d||'?').split(/\s+/).slice(0,2).map(w=>w[0]||'').join('').toUpperCase());
 
-const S={items:[],by:new Map(),loc:ls.get('loc','DXB'),sess:ls.get('sess','NOV26'),who:ls.get('who',''),q:'',dept:'',grp:'',status:'todo',sort:'dept',limit:60,
+const S={items:[],by:new Map(),loc:ls.get('loc','DXB'),sess:ls.get('sess','NOV26'),who:ls.get('who',''),q:'',dept:'',grp:'',sub:'',status:'todo',sort:'dept',limit:60,
   lines:[],server:[],lastPull:0,agg:new Map(),db:null,mode:'loading',canWrite:true,unsub:null,cur:null,uid:null,downloads:null};
 
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('on'),1800)}
@@ -284,7 +286,7 @@ const store={
 /* ---------- offline: keep the app, item list and photos on the phone ---------- */
 async function offlineStatus(){
   const el=$('#offl');if(!('caches' in window))return;
-  try{const c=await caches.open('floral-v2');const keys=await c.keys();const n=keys.filter(k=>/\/b\/\d+\.json/.test(k.url)).length;const core=keys.some(k=>/items\.json/.test(k.url));
+  try{const c=await caches.open('floral-v3');const keys=await c.keys();const n=keys.filter(k=>/\/b\/\d+\.json/.test(k.url)).length;const core=keys.some(k=>/items\.json/.test(k.url));
     el.hidden=false;
     if(core&&n>=41){el.textContent='\u2713 Ready to work offline';clearInterval(S.offT);S.offT=null}
     else{el.textContent=`Saving app for offline use\u2026 ${Math.round((n/41)*100)}%`;if(!S.offT)S.offT=setInterval(offlineStatus,4000)}
@@ -293,6 +295,7 @@ async function offlineStatus(){
 if('serviceWorker' in navigator){
   navigator.serviceWorker.register('sw.js',{scope:'./'}).then(()=>{offlineStatus();navigator.serviceWorker.ready.then(r=>{r.active&&r.active.postMessage('precache')})}).catch(()=>{});
   navigator.serviceWorker.addEventListener('message',offlineStatus);
+  let reloaded=false;navigator.serviceWorker.addEventListener('controllerchange',()=>{if(!reloaded&&!$('#ov').classList.contains('open')){reloaded=true;location.reload()}});
 }
 window.addEventListener('online',()=>{pull();flush()});window.addEventListener('offline',syncText);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&S.mode==='sheet'){pull();flush()}});
@@ -318,7 +321,7 @@ const STATS=[['todo','To count'],['counted','Counted'],['var','Variance'],['all'
 $('#stat').innerHTML=STATS.map(([v,t])=>`<button class="chip" data-s="${v}" aria-pressed="${v===S.status}">${t}</button>`).join('');
 function filtered(){
   const q=S.q.trim().toLowerCase();let arr=S.items;
-  if(S.dept)arr=arr.filter(i=>i.dp===S.dept);if(S.grp)arr=arr.filter(i=>gOf(i)===S.grp);
+  if(S.dept)arr=arr.filter(i=>i.dp===S.dept);if(S.grp)arr=arr.filter(i=>gOf(i)===S.grp);if(S.sub)arr=arr.filter(i=>sgOf(i)===S.sub);
   if(q){
     const toks=q.split(/\s+/);
     arr=arr.filter(i=>toks.every(t=>i._s.includes(t)));
@@ -473,13 +476,17 @@ let qT;$('#q').addEventListener('input',e=>{clearTimeout(qT);qT=setTimeout(()=>{
 $('#q').addEventListener('keydown',e=>{if(e.key!=='Enter')return;e.preventDefault();S.q=e.target.value;const q=S.q.trim().toLowerCase();if(!q)return;
   const ex=S.items.filter(i=>i._codes.includes(q));const arr=ex.length?ex:filtered();if(arr.length===1)open(arr[0]._k);else renderList()});
 $('#stat').addEventListener('click',e=>{const b=e.target.closest('[data-s]');if(!b)return;S.status=b.dataset.s;S.limit=60;document.querySelectorAll('#stat .chip').forEach(c=>c.setAttribute('aria-pressed',c===b));renderList()});
-const NONE_G='No group';
+const NONE_G='No group',NONE_S='No sub group';
+const sgOf=i=>(i.sg&&i.sg!=='0')?i.sg:NONE_S;
 const gOf=i=>(i.g&&i.g!=='0')?i.g:NONE_G;
 function opts(set,none,all){const l=[...set].filter(s=>s!==none).sort();if(set.has(none))l.push(none);return `<option value="">${all}</option>`+l.map(k=>`<option value="${esc(k)}">${esc(k)}</option>`).join('')}
 function fillGrp(){const s=new Set();for(const i of S.items)if(!S.dept||i.dp===S.dept)s.add(gOf(i));
   $('#grp').innerHTML=opts(s,NONE_G,'All groups');if(S.grp&&!s.has(S.grp))S.grp='';$('#grp').value=S.grp}
-$('#dept').addEventListener('change',e=>{S.dept=e.target.value;S.grp='';fillGrp();S.limit=60;renderList()});
-$('#grp').addEventListener('change',e=>{S.grp=e.target.value;S.limit=60;renderList()});
+function fillSub(){const s=new Set();for(const i of S.items)if((!S.dept||i.dp===S.dept)&&(!S.grp||gOf(i)===S.grp))s.add(sgOf(i));
+  $('#sub').innerHTML=opts(s,NONE_S,'All sub groups');if(S.sub&&!s.has(S.sub))S.sub='';$('#sub').value=S.sub}
+$('#dept').addEventListener('change',e=>{S.dept=e.target.value;S.grp='';S.sub='';fillGrp();fillSub();S.limit=60;renderList()});
+$('#grp').addEventListener('change',e=>{S.grp=e.target.value;S.sub='';fillSub();S.limit=60;renderList()});
+$('#sub').addEventListener('change',e=>{S.sub=e.target.value;S.limit=60;renderList()});
 $('#sort').addEventListener('change',e=>{S.sort=e.target.value;renderList()});
 $('#morebtn').addEventListener('click',()=>{S.limit+=60;renderList()});
 $('#list').addEventListener('click',e=>{const r=e.target.closest('[data-k]');if(r)open(r.dataset.k);if(e.target.id==='newfromq')newItemForm(S.q.trim())});
@@ -509,7 +516,7 @@ $('#xlsx').addEventListener('click',async()=>{const r=exportRows();if(!r.length)
 fetch('items.json').then(r=>r.json()).then(items=>{
   for(const it of items){it._k=it.id||keyOf(it);
     it._codes=[it.r,it.k,it.ms,it.c].filter(Boolean).map(x=>String(x).toLowerCase());it._s=[it.r,it.k,it.ms,it.c,it.d,it.dp,it.g,it.sg].join(' ').toLowerCase();S.by.set(it._k,it)}
-  S.items=items;$('#dept').innerHTML+=[...new Set(items.map(i=>i.dp))].sort().map(d=>`<option>${esc(d)}</option>`).join('');fillGrp();rebuild();
+  S.items=items;$('#dept').innerHTML+=[...new Set(items.map(i=>i.dp))].sort().map(d=>`<option>${esc(d)}</option>`).join('');fillGrp();fillSub();rebuild();
 }).catch(()=>{$('#meta').textContent='Could not load the item list. Reload the page.'});
 fillSessions([]);
 S.mode=API?'sheet':'local';if(API){$('#sess').readOnly=true;$('#sess').title='Set by the admin in the master sheet'}store.sub();
