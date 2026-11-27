@@ -85,7 +85,9 @@ img.noimg{display:none}
 .mid b{display:block;font-weight:600;line-height:1.3;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .mid small{display:block;color:var(--mute);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .nums{text-align:right;font-size:13px;color:var(--mute);white-space:nowrap;display:grid;gap:3px}
-.nums b{font:600 20px Outfit;color:var(--ink)}
+.nums b{font:700 24px/1 Outfit;color:var(--ink)}
+.nums .cq.okc b{color:var(--ok)}.nums .cq.varc b{color:var(--acc)}.nums .cq.none b{color:var(--mute);font-weight:500}
+.nums .cl{font-size:11px;font-weight:600}.nums .sm{font-size:12px}.nums .sm i{font-style:normal;font-weight:600;color:var(--ink)}
 .tag{display:inline-block;border-radius:99px;padding:2px 9px;font-size:12px;font-weight:600}
 .tag.ok{background:color-mix(in srgb,var(--ok) 16%,transparent);color:var(--ok)}
 .tag.var{background:color-mix(in srgb,var(--acc) 16%,transparent);color:var(--acc)}
@@ -118,7 +120,9 @@ img.noimg{display:none}
 .locs b{display:block;font:600 17px Outfit;color:var(--ink)}
 .locs i{font-style:normal;color:var(--ok)}
 .countbox{background:var(--card);border:2px solid var(--brand2);border-radius:16px;padding:14px;display:grid;gap:12px}
-.big{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;text-align:center}
+.big{display:grid;grid-template-columns:1fr 1fr;gap:8px;text-align:center}
+.big .main{background:var(--brand2);color:#fff}.big .main span{color:#ffffffcc}.big b.m{font-size:clamp(17px,4vw,22px);font-weight:600}
+
 .big div{background:var(--soft);border-radius:12px;padding:8px}.big span{font-size:12px;color:var(--mute);display:block}
 .big b{font:700 clamp(22px,5vw,30px) Outfit}
 .qrow{display:flex;gap:8px;flex-wrap:wrap}
@@ -159,7 +163,7 @@ table{font-size:13px}.stack thead{display:none}.stack tr{display:grid;padding-bl
 <body>
 <header>
   <div class="top">
-    <h1>Daily Flower Stock Counting<small>Floral Master · System qty = Oct'26 SOH</small></h1>
+    <h1>Daily Flower Stock Counting<small>Floral Master · daily counts by location</small></h1>
     <div class="ctl">
       <label>Location<select id="loc"></select></label>
       <label>Counting date<input id="sess" type="date" required style="width:170px"></label>
@@ -235,7 +239,7 @@ const initials=d=>esc((d||'?').split(/\s+/).slice(0,2).map(w=>w[0]||'').join('')
 const todayISO=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
 const niceDate=s=>{const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(s||'');return m?new Date(+m[1],m[2]-1,+m[3]).toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric'}):s};
 const S={items:[],by:new Map(),loc:ls.get('loc','DXB'),sess:todayISO(),who:ls.get('who',''),q:'',dept:new Set(),grp:new Set(),sub:new Set(),status:'todo',sort:'dept',limit:60,
-  lines:[],server:[],lastPull:0,agg:new Map(),db:null,mode:'loading',canWrite:true,unsub:null,cur:null,uid:null,downloads:null};
+  lines:[],prev:new Map(),server:[],lastPull:0,agg:new Map(),db:null,mode:'loading',canWrite:true,unsub:null,cur:null,uid:null,downloads:null};
 
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('on'),1800)}
 function setSync(on,txt){$('#dot').classList.toggle('on',on);$('#synct').textContent=txt}
@@ -284,8 +288,36 @@ async function pull(){
   }catch(e){}
   syncText();
 }
+
+/* ---------- last count before the selected date ---------- */
+const shortDate=s=>{const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(s||'');return m?new Date(+m[1],m[2]-1,+m[3]).toLocaleDateString('en-GB',{day:'numeric',month:'short'}):s};
+function setPrev(lines){
+  const best=new Map();
+  for(const l of lines){if(!/^\d{4}-\d{2}-\d{2}$/.test(l.ss||'')||l.ss>=S.sess)continue;const k=l.key+'|'+l.loc;const b=best.get(k);
+    if(!b||l.ss>b.date)best.set(k,{date:l.ss,q:Number(l.q)||0});else if(l.ss===b.date)b.q+=Number(l.q)||0}
+  S.prev=best;renderList();if(S.cur)renderSheet();
+}
+const prev=(k,loc=S.loc)=>S.prev.get(k+'|'+loc);
+let prevFor='';
+async function loadPrev(){
+  const want=S.sess;prevFor=want;const days=[];const d0=new Date(want+'T12:00:00');
+  for(let i=1;i<=21;i++){const d=new Date(d0);d.setDate(d.getDate()-i);days.push(d.toISOString().slice(0,10))}
+  const out=[];const local=l=>out.push(...l);
+  for(const ss of days)local(ls.get('lines_'+ss,[]));
+  local(box().filter(l=>l.ss<want));
+  if(S.mode==='sheet'&&navigator.onLine){
+    await Promise.all(days.map(async ss=>{
+      const c=ls.get('pday_'+ss,null);
+      if(c&&Date.now()-c.t<10*60e3){local(c.lines);return}
+      try{const r=await fetch(API+'?t='+encodeURIComponent(TOKEN)+'&session='+ss).then(r=>r.json());if(r.ok){ls.set('pday_'+ss,{t:Date.now(),lines:r.lines});local(r.lines)}}
+      catch(e){if(c)local(c.lines)}
+    }));
+  }else{for(const ss of days){const c=ls.get('pday_'+ss,null);if(c)local(c.lines)}}
+  if(prevFor===want){const seen=new Set();setPrev(out.filter(l=>!seen.has(l.id)&&seen.add(l.id)))}
+}
 const store={
   sub(){
+    loadPrev();
     if(S.mode==='sheet'&&!ls.get('migrated',false)){ /* counts saved before the sheet was connected: queue them for upload once */
       const moved=[];try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&k.startsWith('stc_lines_')){const ss=k.slice(10);for(const l of (ls.get('lines_'+ss,[])||[])){moved.push({...l,ss:l.ss||ss,id:l.id&&String(l.id).startsWith('L')?l.id+'-'+Math.random().toString(36).slice(2,6):l.id||uid()})}}}}catch(e){}
       if(moved.length)ls.set('outbox',[...box(),...moved]);ls.set('migrated',true);
@@ -383,8 +415,10 @@ const io=('IntersectionObserver' in window)?new IntersectionObserver(es=>{for(co
 const hydrate=root=>root.querySelectorAll('img[data-im]:not([src])').forEach(i=>io?io.observe(i):fill(i));
 function rowHTML(it){
   const c=cnt(it._k),s=status(it),sq=sys(it);
-  const tag=s==='ok'?`<span class="tag ok">Matched ${fmt(c.q)}</span>`:s==='var'?`<span class="tag var">Counted ${fmt(c.q)} (${sgn(c.q-sq)})</span>`:`<span class="tag todo">Not counted</span>`;
-  return `<button class="row" data-k="${esc(it._k)}">${thumb(it)}<span class="mid"><b>${esc(it.d)}</b><small>${esc(it.k||it.ms||'—')} · ${esc(it.r)}</small><small>${esc(it.dp)}${(it.g&&it.g!=='0')?' › '+esc(it.g):''}</small>${it.st==='Inactive'?'<span class="tag inact">Inactive</span>':''}</span><span class="nums"><span>System <b>${fmt(sq)}</b> ${esc(it.u)}</span>${tag}</span></button>`;
+  const pv=prev(it._k);
+  const big=c?`<span class="cq"><b>${fmt(c.q)}</b> ${esc(it.u)}</span><span class="cl">Counted ${esc(shortDate(S.sess))}</span>`:`<span class="cq none"><b>—</b></span><span class="cl">Not counted yet</span>`;
+  const tag=`${big}<span class="sm">Last count${pv?' '+esc(shortDate(pv.date))+': <i>'+fmt(pv.q)+'</i>':': —'}</span>`;
+  return `<button class="row" data-k="${esc(it._k)}">${thumb(it)}<span class="mid"><b>${esc(it.d)}</b><small>${esc(it.k||it.ms||'—')} · ${esc(it.r)}</small><small>${esc(it.dp)}${(it.g&&it.g!=='0')?' › '+esc(it.g):''}</small>${it.st==='Inactive'?'<span class="tag inact">Inactive</span>':''}</span><span class="nums">${tag}</span></button>`;
 }
 function renderList(){
   if(!S.items.length)return;
@@ -405,16 +439,16 @@ function renderSheet(first){
   const kv=[['Item status',it.st],['SKU (stock take)',it.k],['SKU (master)',it.ms],['RMT code',it.r],['CID',it.c],['UOM',it.u],['Purchase UOM',it.pu?`${it.pu}${it.pf?' = '+fmt(it.pf)+' '+it.u:''}`:''],
     ['Origin',it.o],['Buyer',it.by],['Component type',it.ct],['Group',it.g],['Sub group',it.sg],['Remark',it.rm],
     ['Master link',it.mc&&it.mc!=='RMT'?'Matched by '+it.mc+(it.mr?' → '+it.mr:''):it.mc?'':'Not in component master']].filter(x=>x[1]);
-  const locs=LOCS.map(([l,n])=>{const cc=cnt(it._k,l);return `<div class="${l===S.loc?'cur':''}">${esc(n)}<b>${fmt(sys(it,l))}</b>${cc?`<i>counted ${fmt(cc.q)}</i>`:''}</div>`}).join('');
+  let tot=0;const locs=LOCS.map(([l,n])=>{const cc=cnt(it._k,l),pl=prev(it._k,l);if(cc)tot+=cc.q;return `<div class="${l===S.loc?'cur':''}">${esc(n)}<b>${cc?fmt(cc.q):'—'}</b>${pl?`<i style="color:var(--mute)">last ${esc(shortDate(pl.date))}: ${fmt(pl.q)}</i>`:''}</div>`}).join('');
   const pf=it.pf&&it.pf>1?it.pf:0;
   const lines=c?c.lines.slice().sort((a,b)=>a.at.localeCompare(b.at)).map(l=>`<div><span><b>${fmt(l.q)}</b> ${esc(it.u)}${l.note?' · '+esc(l.note):''}<br><small class="meta">${esc(l.by)} · ${esc(new Date(l.at).toLocaleString('en-GB',{dateStyle:'short',timeStyle:'short'}))}${l.pending?' · <b style="color:var(--warn)">waiting to upload</b>':''}</small></span>${S.canWrite&&(l.by===S.who||l.pending)?`<button data-del="${esc(l.id)}">Remove</button>`:''}</div>`).join(''):'';
   $('#sheet').innerHTML=`<div class="shd"><div><h2>${esc(it.d)}</h2><small>${esc(it.dp)} › ${esc(it.g)} › ${esc(it.sg)}</small><div style="margin-top:6px"><span class="tag ${it.st==='Inactive'?'inact':'act'}" style="background:#fff">${it.st==='Inactive'?'Inactive item':'Active item'}</span></div></div><button class="x" id="xclose" aria-label="Close">×</button></div>
   <div class="sb">
     <div style="display:grid;gap:12px;align-content:start">${(it.iu||it.im)?`<div class="pic">${imgTag(it,it.d)}</div>`:`<div class="pic">${initials(it.d)}</div>`}
-      <div><div class="meta" style="margin-bottom:6px">Oct’26 SOH by location · total <b>${fmt(it.q)} ${esc(it.u)}</b></div><div class="locs">${locs}</div></div></div>
+      <div><div class="meta" style="margin-bottom:6px">Counted by location · ${esc(shortDate(S.sess))} · total <b>${fmt(tot)} ${esc(it.u)}</b></div><div class="locs">${locs}</div></div></div>
     <div style="display:grid;gap:14px;align-content:start">
       <div class="countbox">
-        <div class="big"><div><span>System · ${esc(LN[S.loc])}</span><b>${fmt(sq)}</b></div><div><span>Counted</span><b>${c?fmt(cq):'—'}</b></div><div><span>Variance</span><b style="color:${!c?'inherit':cq-sq<0?'var(--acc)':cq-sq>0?'var(--ok)':'inherit'}">${c?sgn(cq-sq):'—'}</b></div></div>
+        <div class="big"><div class="main"><span>Counted · ${esc(shortDate(S.sess))}</span><b>${c?fmt(cq):'—'}</b></div><div><span>Last count${prev(it._k)?' · '+esc(shortDate(prev(it._k).date)):''}</span><b>${prev(it._k)?fmt(prev(it._k).q):'—'}</b></div></div>
         ${S.canWrite?`${S.who?'':'<div class="warnbar">Type your name in “Counter name” at the top so counts are traceable.</div>'}
         <form id="cform" class="qrow" autocomplete="off">
           <button type="button" class="btn step" data-step="-1" aria-label="Minus one">−</button>
